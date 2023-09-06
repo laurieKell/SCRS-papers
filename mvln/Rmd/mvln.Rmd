@@ -78,20 +78,20 @@ base=SS_output("../data/inputs/run_06",verbose=FALSE,hidewarn=FALSE,printstat=FA
 ```
 
 ```{r, mvln}
-mvln =mvlnFLQ(ssmvln(base[["CoVar"]],base[["derived_quants"]],mc= 1241))  
+mvln =mvlnFLQ(ssmvln(base[["CoVar"]],base[["derived_quants"]],mc= 1241))
 ```
 
 ## Historical Status
 
 ```{r, trend-stock, fig.width=8, fig.height=4}
-trendPhaseMar2(window(mvln[["stock"]],end=2022),ylim=3, ylab=expression(SSB:B[MSY]))
+kobe:::trendPhaseMar2(window(mvln[["stock"]],end=2022),ylim=3, ylab=expression(SSB:B[MSY]))
 ```
 
 **Figure `r iFig=iFig+1; iFig`.** Historical trends in $SSB/B_{MSY}$ with marginal plot of current status, ribbons show inter-quartiles and $90_{th}$ percentile, relative to median. 
 
 
 ```{r, trend-harvest, fig.width=8, fig.height=4, echo=FALSE}
-trendPhaseMar2(window(mvln[["harvest"]],end=2022),ylim=2,
+kobe:::trendPhaseMar2(window(mvln[["harvest"]],end=2022),pts=mvln[["harvest"]][,"2023"],ylim=2,
                ylab=expression(F:F[MSY]))   
 ```
 
@@ -147,7 +147,7 @@ mvln =mvlnFLQ(ssmvln(bsh300[["CoVar"]],bsh300[["derived_quants"]],mc= 1241))
 ```
 
 ```{r, trend-stock-hist, fig.width=8, fig.height=4,warning=FALSE, message=FALSE}
-trendPhaseMar2(window(mvln[["stock"]],start=2000, end=2070),ylim=3, 
+kobe:::trendPhaseMar2(window(mvln[["stock"]],start=2000, end=2070),ylim=3, 
                ylab=expression(SSB:B[MSY]))
 ```
 
@@ -155,7 +155,7 @@ trendPhaseMar2(window(mvln[["stock"]],start=2000, end=2070),ylim=3,
 
 
 ```{r, trend-harvest-hist, fig.width=8, fig.height=4, echo=FALSE}
-trendPhaseMar2(window(mvln[["harvest"]],start=2000, end=2070),ylim=2, 
+kobe:::trendPhaseMar2(window(mvln[["harvest"]],start=2000, end=2070),ylim=2, 
                ylab=expression(F:F[MSY]))
 ```
 
