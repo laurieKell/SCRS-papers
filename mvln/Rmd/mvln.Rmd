@@ -71,7 +71,6 @@ setwd("~/Desktop/SCRS-papers/mvln/Rmd")
 
 ```{r, source, echo=FALSE}
 source("../R/ssMVLNFunction.R")  
-source("../R/trend-plot.R")   
 ```
 
 ```{r, base, echo=FALSE}
