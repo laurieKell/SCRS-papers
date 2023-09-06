@@ -1,0 +1,518 @@
+---
+title: "MVLN "
+subtitle: "**North Atlantic Blue Shark**"
+author: "L Kell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+mathjax: TRUE
+tags: FLR FLCore introduction
+license: Creative Commons Attribution-ShareAlike 4.0 International Public License
+# bibliography: refs.bib
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, output_dir = "html") })
+---
+  
+```{r, knitr, eval=TRUE, echo=FALSE, warning=FALSE, cache=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+# getwd()
+library(knitr)
+opts_chunk$set(cache     =TRUE, 
+               comment   =NA, 
+               warning   =FALSE, 
+               message   =FALSE, 
+               error     =FALSE, 
+               echo      =FALSE, 
+               eval      =TRUE,
+               cache     =TRUE,
+               cache.path="cache/mvln/",
+               fig.path  ="../tex/mvln-",
+               fig.width =10,
+               fig.height=6,
+               dev       ="png")
+iFig=0
+iTab=0
+```
+
+
+```{r}
+pagebreak <- function() {
+  if(knitr::is_latex_output())
+    return("\\newpage")
+  else
+    return('<div style="page-break-before: always;" />')
+}
+```
+
+
+```{r, warning=FALSE,  message=FALSE, error=FALSE}
+library(r4ss)
+library(ss3diags)     
+
+library(FLCore)
+library(ggplotFL)
+library(kobe)
+
+library(ggplot2)
+library(grid) 
+
+library(reshape)
+library(plyr)
+library(dplyr)
+
+library(data.table)
+
+library(xtable)
+library(kableExtra)
+```
+
+```{r, dirMy, eval=FALSE}
+setwd("~/Desktop/SCRS-papers/mvln/Rmd")
+```
+
+```{r, source, echo=FALSE}
+source("../R/ssMVLNFunction.R") 
+source("../R/trend-plot.R")   
+```
+
+```{r, base, echo=FALSE}
+base=SS_output("../data/inputs/run_06",verbose=FALSE,hidewarn=FALSE,printstat=FALSE)
+```
+
+```{r, mvln}
+mvln =mvlnFLQ(ssmvln(base[["CoVar"]],base[["derived_quants"]],mc= 1241)) 
+```
+
+## Historical Status
+
+```{r, trend-stock, fig.width=8, fig.height=4}
+trendPhaseMar2(window(mvln[["stock"]],end=2022),ylim=3, ylab=expression(SSB:B[MSY]))
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Historical trends in $SSB/B_{MSY}$ with marginal plot of current status, ribbons show inter-quartiles and $90_{th}$ percentile, relative to median. 
+
+
+```{r, trend-harvest, fig.width=8, fig.height=4, echo=FALSE}
+trendPhaseMar2(window(mvln[["harvest"]],end=2022),ylim=2,
+               ylab=expression(F:F[MSY]))   
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Historical trends in $F/F_{MSY}$ with marginal plot of current status, ribbons show inter-quartiles and $90_{th}$ percentile, relative to median. 
+
+## Current Status
+
+```{r, fig.height=8, fig.width=8}
+kb=rbind(cbind(run="mvln",model.frame(FLQuants(stock=mvln[["stock"]][,"2021"],
+                                               harvest=mvln[["harvest"]][,"2020"]),drop=T)))
+
+kobe:::kobePhaseMar2(kb,
+                     quadcol=c("red","green","yellow","orange"),
+                     col="blue",size=0.1) 
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Kobe phase plot for $SSB/B_{MSY}$ in 2021 and $F/F_{MSY}$ in 2020
+
+```{r, fig.height=8, fig.width=8} 
+kb=rbind(cbind(run="mvln",model.frame(FLQuants(stock=mvln[["stock"]][,"2022"],
+                                               harvest=mvln[["harvest"]][,"2022"]),drop=T)))
+
+kobe:::kobePhaseMar2(kb, quadcol=c("red","green","yellow","orange"),
+                     col="blue",size=0.1) 
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Kobe phase plot for $SSB/B_{MSY}$ in 2022 and $F/F_{MSY}$ in 2022
+
+
+```{r, kobes-mvln,fig.height=8, fig.width=8}
+dat=mdply(expand.grid(F=2020:2023,SSB=2020:2023), function(F,SSB) 
+  model.frame(FLQuants(harvest=mvln[["harvest"]][,ac(F)],
+                       stock  =mvln[["stock"]][  ,ac(SSB)]),drop=T))
+kobe::kobePhase(dat)+
+  geom_point(aes(stock,harvest),shape=21,fill="grey",col="black",size=0.75,linewidth=0.3)+
+  geom_label(aes(x=0.2,y=0.1,label=signif(V1,2)),
+             data=ddply(dat,.(F,SSB), with, cor(log(stock),log(harvest))))+
+  facet_grid(F~SSB)
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for historical and $F/F_{MSY}$ forecasts, with correlations. 
+
+## Projections
+
+
+```{r, bsh300-mvln}
+dir300="../data/inputs/forecasts/300"
+
+bsh300=SS_output(dir300,verbose=FALSE,hidewarn=FALSE,printstat=FALSE)
+bsh300=bsh300[c("CoVar","derived_quants")]
+
+mvln =mvlnFLQ(ssmvln(bsh300[["CoVar"]],bsh300[["derived_quants"]],mc= 1241)) 
+```
+
+```{r, trend-stock-hist, fig.width=8, fig.height=4,warning=FALSE, message=FALSE}
+trendPhaseMar2(window(mvln[["stock"]],start=2000, end=2070),ylim=3, 
+               ylab=expression(SSB:B[MSY]))
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Recent historical and future trends in $SSB/B_{MSY}$ and projection for $F_{MSY}$, marginal plot of status in 2032, ribbons show inter-quartiles and $90_{th}$ percentile, relative to median.
+
+
+```{r, trend-harvest-hist, fig.width=8, fig.height=4, echo=FALSE}
+trendPhaseMar2(window(mvln[["harvest"]],start=2000, end=2070),ylim=2, 
+               ylab=expression(F:F[MSY]))
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Recent historical and future trends in $F/F_{MSY}$ and projection for $F_{MSY}$, marginal plot of status in 2032, ribbons show inter-quartiles and $90_{th}$ percentile, relative to median.
+
+
+```{r, cvrs}
+dir="../data/inputs/forecasts"
+
+runs=c(0,seq(150,400,25))
+
+cvrs=mlply(runs, function(x) try(SS_output(file.path(dir,x),verbose=FALSE,
+                                           hidewarn=FALSE,printstat=FALSE)$CoVar)) 
+hats=mlply(runs, function(x) try(SS_output(file.path(dir,x),verbose=FALSE,
+                                           hidewarn=FALSE,printstat=FALSE)$derived_quants))
+```
+
+```{r, ts}
+hat   =transform(ldply(hats, function(x) if(is.data.frame(x)) return(x) else return(NULL)) ,Run=runs[an(ac(X1))])
+bratio=transform(hat[grep("Bratio_",hat$Label),],year=an(substr(Label,8,12)))
+ssb   =subset(transform(hat[grep("SSB_",   hat$Label),],year=an(substr(Label,5,nchar(Label)))),!is.na(year))
+f     =subset(transform(hat[grep("F_",     hat$Label),],year=an(substr(Label,3,7))),           !is.na(year))
+af    =transform(hat[grep("annF_",  hat$Label),],ref=an(substr(Label,6,nchar(Label))))
+```
+
+```{r, bratio, fig.width=8,fig.height=4}
+ggplot(transform(bratio,What=ifelse(substr(Run,1,1)=="F","F","Catch"),TAC=paste(Run,"(kt)")))+
+  scale_x_continuous(limits=c(1970,2072))+
+  theme_bw()+
+  theme(legend.position="bottom")+
+  geom_line(aes(year,Value,col=TAC))+
+  xlab("Year")+ylab(expression(SSB/B[MSY]))+
+  scale_color_manual("TAC",values=rainbow(length(unique(f$Run))))
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Deterministic values of $SSB/B_{MSY}$ for projections
+
+```{r, f, fig.width=8,fig.height=4}
+ggplot(transform(f,What=ifelse(substr(Run,1,1)=="F","F","Catch"),TAC=paste(Run,"(kt)")))+  
+  scale_y_continuous(limits=c(0,3))+
+  scale_x_continuous(limits=c(1970,2072))+
+  geom_line(aes(year,Value,col=TAC))+
+  scale_y_continuous(limits=c(0,2))+
+  scale_x_continuous(limits=c(1970,2072))+
+  theme_bw()+
+  theme(legend.position="bottom")+
+  xlab("Year")+ylab(expression(F/F[MSY]))+
+  scale_color_manual("TAC",values=rainbow(length(unique(f$Run))))
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Deterministic values of $F/F_{MSY}$ for projections.
+
+```{r, mvls, fig.width=8,fig.height=4}
+mvls=mlply(seq(length(cvrs)), function(x) 
+         {set.seed(1224); try(model.frame(mvlnFLQ(ssmvln(cvrs[[x]],hats[[x]],mc= 1241)),drop=T))}) 
+dat=transform(ldply(mvls, function(x) if(is.data.frame(x)) return(x) else return(NULL)),Run=runs[an(ac(X1))])
+dt2=transform(ddply(dat, .(year,Run), with, median(stock)),What=ifelse(substr(Run,1,1)=="F","F","Catch"))
+
+ggplot(transform(dt2,TAC=paste(Run,"(kt)")))+
+  geom_line(aes(x=year,y=V1,col=TAC))+
+  scale_x_continuous(limits=c(1970,2072))+
+  theme_bw()+
+  theme(legend.position="bottom")+
+  xlab("Year")+ylab(expression(SSB/B[MSY]))+
+  scale_color_manual("TAC",values=rainbow(length(unique(f$Run))))
+```
+
+**Figure `r iFig=iFig+1; iFig`.**  Median estimates of $B/SSB_{MSY}$ for projections. 
+
+```{r, mvls-f, fig.width=8,fig.height=4}
+dt2=transform(ddply(dat, .(year,Run), with,    
+                    median(harvest)),What=ifelse(substr(Run,1,1)=="F","F","Catch"))
+
+ggplot(transform(dt2,TAC=paste(Run,"(kt)")))+
+  geom_line(aes(x=year,y=V1,col=TAC))+
+  xlab("Year")+ylab(expression(F/F[MSY]))+
+  scale_y_continuous(limits=c(0,3))+
+  scale_x_continuous(limits=c(1970,2072))+
+  facet_grid(What~.)+
+  theme_bw()+
+  theme(legend.position="bottom")+
+  scale_color_manual("TAC",values=rainbow(length(unique(f$Run))))
+```
+
+**Figure `r iFig=iFig+1; iFig`.**  Median estimates of $F/SSB_{MSY}$ for projections. 
+
+```{r}
+library(ggplotFL)
+plot(mvln,iter=c(5,17))+
+  theme_bw()
+```
+
+**Figure `r iFig=iFig+1; iFig`.**  Plot of $B/SSB_{MSY}$ & $F/F_{MSY}$ with sample Monte Carlo simulations.
+
+`r pagebreak()`
+
+\tiny
+
+
+**Table `r iTab=iTab+1; iTab`.** Covariances from SS
+
+
+```{r, covar}
+cor =sscor(base$CoVar)
+vars=c(paste("Bratio",2020:2022,sep="_"),paste("F",2020:2022,sep="_"))
+cor =cor[vars,vars]
+        
+print(cor,digits=2)
+```
+
+**Table `r iTab=iTab+1; iTab`.** Covariances simulated by MVLN
+
+```{r, covar-2, eval=FALSE}
+cor=cor(cast(subset(as.data.frame(mvln[c("stock","harvest")],drop=T),year%in%2020:2022),iter~qname+year,value="data")[,-1])
+dimnames(cor)=list(vars, vars) 
+
+print(cor,digits=2)
+```
+
+**Table `r iTab=iTab+1; iTab`.** Estimates of $SSB/B_{MSY}$
+
+```{r}
+window(hatFLQ(sshat(bsh300$derived_quants))[c("stock","harvest")],start=2020,end=2023)
+```
+
+**Table `r iTab=iTab+1; iTab`.** Summary of MVLN terminal estimates of $SSB/B_{MSY}$
+
+```{r, summary-ssb-mvln}
+print(cast(as.data.frame(quantile(mvln[["stock"]][,ac(2020:2022)],probs=c(0.15,0.5))),iter~year,value="data"),digits=2)
+```
+
+
+**Table `r iTab=iTab+1; iTab`.** Summary of MVLN terminal estimates of $F/F_{MSY}$
+
+```{r, summary-f-mvln}
+print(cast(as.data.frame(quantile(mvln[["harvest"]][,ac(2020:2022)],probs=c(0.35,0.5))),iter~year,value="data"),digits=2)
+```
+
+
+```{r, k2sm}
+k2sm=transform(ldply(mvls, function(x) if("try-error"%in%is(x)) return(NULL) else as.data.frame(x)),Run=runs[an(X1)])
+k2sm=ddply(k2sm,  .(Run,year), with, kobe:::prob(stock,harvest))
+k2sm=ddply(melt(k2sm,id=c("Run","year")), .(Run,variable,year), with, mean(value))
+
+p=ggplot(subset(k2sm,variable=="green"&year<=2050))+
+  geom_line(aes(year,V1,col=Run))
+k2sm=cast(k2sm,variable~Run~year,value="V1","mean")[,,ac(1971:2070)] 
+```
+
+**Table `r iTab=iTab+1; iTab`.** Probability of being in green quadrant.
+
+```{r, k2sm-f}
+grn=k2sm["green",,]
+grn[is.na(grn)]=0
+grn[,-1]=paste(unlist(c(as.integer(grn[,-1]*100))),"%",sep="")
+grn[,ac(2023:2030)]
+```
+
+
+**Table `r iTab=iTab+1; iTab`.** Probability of being over fished.
+
+```{r, k2sm-ofd}
+oFd=k2sm["overFished",,]
+
+oFd[is.na(oFd)]=1
+oFd[,-1]=paste(unlist(c(as.integer(oFd[,-1]*100))),"%",sep="")
+oFd[,ac(2023:2030)]
+```
+
+**Table `r iTab=iTab+1; iTab`.** Probability of overfishing.
+
+```{r, k2sm-ofg}
+oFg=k2sm["overFishing",,]
+
+oFg[is.na(oFg)]=1
+oFg[,-1]=paste(unlist(c(as.integer(oFg[,-1]*100))),"%",sep="")
+oFg[,ac(2023:2030)]
+```
+
+```{r}
+library(kobe)
+library(xtable) 
+library(tables) 
+library(Hmisc)
+
+#\definecolor{gray50}{rgb}{ 1.0,1.0,1.0}
+#\definecolor{gray60}{rgb}{ 0.9,0.9,0.9}
+#\definecolor{gray70}{rgb}{ 0.8,0.8,0.8}
+#\definecolor{gray80}{rgb}{ 0.7,0.7,0.7}
+#\definecolor{gray90}{rgb}{ 0.6,0.6,0.6}
+#\definecolor{gray100}{rgb}{0.5,0.5,0.5}
+
+t1=latex(kobe:::shade(k2sm["green",,ac(2023:2032)],pct=""),
+      file    ="../tex/k2smGreen.tex", 
+      rowlabel="TAC",
+      rowname =paste(dimnames(k2sm["green",,])[[1]],"t"),
+      caption ="Kobe II Strategy Matrix, $P(F\\leq F_{MSY})$.")
+
+t2=latex(kobe:::shade(k2sm["overFished",,ac(2023:2032)],pct=""),
+      file    ="../tex/overfished.tex", 
+      rowlabel="TAC",
+      rowname =paste(dimnames(k2sm["overFished",,])[[1]],"t"),
+      caption ="Kobe II Strategy Matrix, $P(F\\leq F_{MSY})$.")
+
+t3=latex(kobe:::shade(k2sm["overFishing",,ac(2023:2032)],pct=""),
+      file    ="../tex/overfishing.tex", 
+      rowlabel="TAC",
+      rowname =paste(dimnames(k2sm["overFishing",,])[[1]],"t"),
+      caption ="Kobe II Strategy Matrix, $P(F\\leq F_{MSY})$.")
+```
+
+```{r, eval=FALSE}
+kab=knitr::kable(k2sm["overFished",,ac(2023:2032)], caption="Table 1: ", booktabs=T, digits=2, row.names=FALSE)
+kable_classic_2(kab, full_width=F, latex_options="hold_position")
+```
+
+\normalsize
+
+
+```{r,echo=FALSE, eval=FALSE}
+sim<-function(covar,hat,year,biomass="Bratio",f="F",ref="annF_MSY",fyr=-1,
+              mc=5000,ss3diag=TRUE,puredelta=TRUE){
+
+  y=rbind(hat[grep(paste(biomass,year,sep="_"),hat$Label),],
+          hat[grep(paste(f,      year+fyr,  sep="_"),hat$Label),])
+  fref = hat[grep(ref,hat$Label), ]
+  
+  bratio=covar[ grep(paste(biomass,year,sep="_"),covar$label.i),]
+  x=bratio[grep(paste(f,year+fyr,sep="_"),bratio$label.j),]
+  fs=covar[grep(ref,covar$label.i),]
+  x1=fs[grep(paste(biomass,year,sep="_"),fs$label.j),]
+  x2=fs[grep(paste(f,year+fyr,sep="_"),fs$label.j),]
+  ss=rbind(x,x1,x2)
+  
+  
+  ## Correlations on the log scale
+  ## Estimates on the untransformed scale
+  if (ss3diag){
+  varF    = log(1 + (y$StdDev[1]/y$Value[1])^2)
+  varB    = log(1 + (y$StdDev[2]/y$Value[2])^2)
+  varFref = log(1 + (fref$StdDev[1]/fref$Value)^2)
+  
+  cov =  log(1 + mean(x$corr)*sqrt(varF*varB))
+  cov1 = log(1 + mean(x1$corr)*sqrt(varB*varFref))
+  cov2 = log(1 + mean(x2$corr)*sqrt(varF*varFref))
+  
+  mvnmu = log(c(y$Value[2], y$Value[1], fref$Value))
+  
+  mvncov = matrix(NA, ncol = 3, nrow = 3)
+  diag(mvncov) = c(varB, varF, varFref)
+  mvncov[1, 2] = mvncov[2, 1] = cov
+  mvncov[2, 3] = mvncov[3, 2] = cov1
+  mvncov[1, 3] = mvncov[3, 1] = cov2
+  
+  rtn=exp(mvtnorm::rmvnorm(mc, mean = mvnmu, sigma = mvncov, method = c("svd")))
+  }else{
+  varlogF   =(y$StdDev[1]/y$Value[1])^2
+  varlogB   =(y$StdDev[2]/y$Value[2])^2
+  varlogFref=(fref$StdDev[1]/fref$Value)^2
+ 
+  if(!puredelta){
+    varlogF = log(1 + varlogF)
+    varlogB = log(1 + varlogB)
+    varlogFref = log(1 + varlogFref)}
+  
+  cov  =mean(x$corr)*sqrt(varlogF*varlogB)
+  cov1 =mean(x1$corr)*sqrt(varlogB*varlogFref)
+  cov2 =mean(x2$corr)*sqrt(varlogF*varlogFref)
+  
+  if(!puredelta){
+    cov = log(1 + cov)
+    cov1 = log(1 + cov1)
+    cov2 = log(1 + cov2)}
+  
+  mvncov = matrix(NA, ncol = 3, nrow = 3)
+  diag(mvncov) = c(varlogB, varlogF, varlogFref)
+  mvncov[1, 2] = mvncov[2, 1] = cov
+  mvncov[2, 3] = mvncov[3, 2] = cov1
+  mvncov[1, 3] = mvncov[3, 1] = cov2
+  
+  #MLE of log(Bratio), log(F), log(Fref) is obtained by direct transformation of MLE in non-log scale:
+  mvnmu = log(c(y$Value[2], y$Value[1], fref$Value)) 
+  
+  rtn=exp(mvtnorm::rmvnorm(mc, mean = mvnmu, sigma = mvncov, method = c("svd")))}
+  
+  rtn=as.data.frame(rtn)
+  names(rtn)=c("harvest","stock","f")
+  
+  list(sim=rtn,ss=ss)}
+
+hat  =bsh$derived_quants
+covar=bsh$CoVar
+
+set.seed(87888)
+mc1=sim(covar,hat,year=2021,mc=50000)
+set.seed(87888)
+mc2=sim(covar,hat,year=2021,mc=50000,ss3diag=FALSE,puredelta=!TRUE)
+set.seed(87888)
+mc3=sim(covar,hat,year=2021,mc=50000,ss3diag=FALSE,puredelta=TRUE)
+
+mc1[[2]]
+sims=rbind(cbind(run="SSMVLN",    mc1[[1]]),
+           cbind(run="CF",        mc2[[1]]),
+           cbind(run="Pure Delta",mc3[[1]]))
+
+
+kobe:::kobePhaseMar2(sims,
+                     ylim=2.5,xlim=2.5,
+                     xlab=expression(B/B[MSY]),
+                     ylab=expression(F/F[MSY]),
+                     quadcol=c("red","green","yellow","orange"),size=0.1)
+
+ddply(sims,.(run), with, quantile(stock))
+ddply(sims,.(run), with, quantile(harvest))
+ddply(sims,.(run), with, cor(log(harvest),log(stock)))
+
+mc1[[2]]
+
+nms =paste(c("Bratio","F"),rep(as.character(seq(2020,2022)),each=2),sep="_")
+flag=bsh$CoVar[,7]%in%nms&bsh$CoVar[,8]%in%nms
+cast(bsh$CoVar[flag,7:9],label.i~label.j)
+```
+
+```{r,eval=FALSE}
+dat=read.csv("/home/laurie/Desktop/risk/caseStudies/bsh/ss_forecast/forecasts/150/forecast.ss",skip=63,sep="",header=F,col.names=c("year","v2","fleet","data"))
+ggplot(subset(dat,year<2040))+geom_point(aes(year,data))+facet_grid(fleet~.,scale="free")
+```
+
+
+```{r, eval=FALSE}
+library(calculus)
+library(compositions)
+
+sim1=exp(mvtnorm::rmvnorm(1000, mean=mvlmu[c("Bratio_2020","F_2020")], 
+                               sigma=cvr[  c("Bratio_2020","F_2020"),
+                                         c("Bratio_2020","F_2020")], 
+                          method = c("svd")))
+sim2=rlnorm.rplus(1000,mvlmu[c("Bratio_2020","F_2020")], cvr[c("Bratio_2020","F_2020"),c("Bratio_2020","F_2020")])
+
+fn<-function(x,y)
+ dlnorm.rplus(c(x,y),   mvlmu[c("Bratio_2020","F_2020")],
+                        cvr[  c("Bratio_2020","F_2020"),
+                              c("Bratio_2020","F_2020")])
+integral(fn, bounds=list(x=c(0,10),y=c(-10,0)))$value
+
+
+k2sm["green",1,"2020"]
+cor=sscor(bsh$CoVar)[c("Bratio_2020","F_2020"),
+                     c("Bratio_2020","F_2020")]
+hat=subset(sshat(bsh$derived_quants),label%in%c("Bratio_2020","F_2020"))
+cov=cor2cov(cor,hat[,"cv"])
+
+fn<-function(x,y)
+ dnorm.aplus(c(x,y),hat[,"hat"],cov)
+integral(fn, bounds=list(x=c(1,0),y=c(Inf,1)))$value
+  
+```
+
+
