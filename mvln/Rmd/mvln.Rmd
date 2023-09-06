@@ -9,7 +9,7 @@ tags: FLR FLCore introduction
 license: Creative Commons Attribution-ShareAlike 4.0 International Public License
 # bibliography: refs.bib
 knit: (function(inputFile, encoding) {
-  rmarkdown::render(inputFile, encoding = encoding, output_dir = "html") })
+  rmarkdown::render(inputFile, encoding = encoding, output_dir = "../outputs/html") })
 ---
   
 ```{r, knitr, eval=TRUE, echo=FALSE, warning=FALSE, cache=FALSE}
@@ -25,7 +25,7 @@ opts_chunk$set(cache     =TRUE,
                eval      =TRUE,
                cache     =TRUE,
                cache.path="cache/mvln/",
-               fig.path  ="../tex/mvln-",
+               fig.path  ="../outputs/tex/mvln-",
                fig.width =10,
                fig.height=6,
                dev       ="png")
@@ -70,7 +70,7 @@ setwd("~/Desktop/SCRS-papers/mvln/Rmd")
 ```
 
 ```{r, source, echo=FALSE}
-source("../R/ssMVLNFunction.R") 
+source("../R/ssMVLNFunction.R")  
 source("../R/trend-plot.R")   
 ```
 
@@ -79,7 +79,7 @@ base=SS_output("../data/inputs/run_06",verbose=FALSE,hidewarn=FALSE,printstat=FA
 ```
 
 ```{r, mvln}
-mvln =mvlnFLQ(ssmvln(base[["CoVar"]],base[["derived_quants"]],mc= 1241)) 
+mvln =mvlnFLQ(ssmvln(base[["CoVar"]],base[["derived_quants"]],mc= 1241))  
 ```
 
 ## Historical Status
