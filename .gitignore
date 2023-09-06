@@ -1,0 +1,14 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+mvln/data/inputs/forecasts/
+mvln/data/inputs/run_06/
+mvln/Rmd/cache/
+mvln/Rmd/*.html
+mvln/outputs/tex/
+mvln/outputs/html/
+mvln/outputs/pdf/
+mvln/outputs/word/
+
