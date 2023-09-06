@@ -350,19 +350,19 @@ library(Hmisc)
 #\definecolor{gray100}{rgb}{0.5,0.5,0.5}
 
 t1=latex(kobe:::shade(k2sm["green",,ac(2023:2032)],pct=""),
-      file    ="../tex/k2smGreen.tex", 
+      file    ="../outputs/tex/k2smGreen.tex", 
       rowlabel="TAC",
       rowname =paste(dimnames(k2sm["green",,])[[1]],"t"),
       caption ="Kobe II Strategy Matrix, $P(F\\leq F_{MSY})$.")
 
 t2=latex(kobe:::shade(k2sm["overFished",,ac(2023:2032)],pct=""),
-      file    ="../tex/overfished.tex", 
+      file    ="../outputs/tex/overfished.tex", 
       rowlabel="TAC",
       rowname =paste(dimnames(k2sm["overFished",,])[[1]],"t"),
       caption ="Kobe II Strategy Matrix, $P(F\\leq F_{MSY})$.")
 
 t3=latex(kobe:::shade(k2sm["overFishing",,ac(2023:2032)],pct=""),
-      file    ="../tex/overfishing.tex", 
+      file    ="../outputs/tex/overfishing.tex", 
       rowlabel="TAC",
       rowname =paste(dimnames(k2sm["overFishing",,])[[1]],"t"),
       caption ="Kobe II Strategy Matrix, $P(F\\leq F_{MSY})$.")
