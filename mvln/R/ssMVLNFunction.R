@@ -109,6 +109,21 @@ sshat<-function(hat){
   names(y)=c("label","hat","stdLog","std","cv")
   y}
 
+
+mcmcKobe<-function(dat){ 
+  F=dat[,grep("F_",names(dat))]
+  F=cbind(iter=seq(dim(F)[[1]]),F[,substr(names(F),1,2)=="F_"])
+  F=melt(F,id="iter")
+  F=cbind(data=F$value,iter=F$iter,mdply(ac(F$variable),function(x) unlist(strsplit(x,"_"))))
+  
+  B=dat[,grep("Bratio_",names(dat))]
+  B=cbind(iter=seq(dim(B)[[1]]),B[,substr(names(B),1,7)=="Bratio_"])
+  B=melt(B,id="iter")
+  B=cbind(data=B$value,iter=B$iter,mdply(ac(B$variable),function(x) unlist(strsplit(x,"_"))))
+  
+  FLQuants(stock  =as.FLQuant(with(B,data.frame(year=V2,iter=iter,data=data))),
+           harvest=as.FLQuant(with(F,data.frame(year=V2,iter=iter,data=data))))}  
+
 ## FLQuants ####################################################################
 ## Reads in data.frame generates FLQuants ######################################
 

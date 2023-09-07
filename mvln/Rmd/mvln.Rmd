@@ -74,11 +74,21 @@ source("../R/ssMVLNFunction.R")
 ```
 
 ```{r, base, echo=FALSE}
+source("~/Desktop/SCRS-papers/mvln/R/ssMVLNFunction.R")
+
 base=SS_output("../data/inputs/run_06",verbose=FALSE,hidewarn=FALSE,printstat=FALSE)
+
+mvln =mvlnFLQ(ssmvln(base[["CoVar"]],base[["derived_quants"]],mc= 1241))
 ```
 
-```{r, mvln}
-mvln =mvlnFLQ(ssmvln(base[["CoVar"]],base[["derived_quants"]],mc= 1241))
+
+```{r, bsh300-mvln}
+dir300="../data/inputs/forecasts/300"
+
+bsh300=SS_output(dir300,verbose=FALSE,hidewarn=FALSE,printstat=FALSE)
+bsh300=bsh300[c("CoVar","derived_quants")]
+
+mvln =mvlnFLQ(ssmvln(bsh300[["CoVar"]],bsh300[["derived_quants"]],mc= 1241)) 
 ```
 
 ## Historical Status
@@ -136,15 +146,6 @@ kobe::kobePhase(dat)+
 
 ## Projections
 
-
-```{r, bsh300-mvln}
-dir300="../data/inputs/forecasts/300"
-
-bsh300=SS_output(dir300,verbose=FALSE,hidewarn=FALSE,printstat=FALSE)
-bsh300=bsh300[c("CoVar","derived_quants")]
-
-mvln =mvlnFLQ(ssmvln(bsh300[["CoVar"]],bsh300[["derived_quants"]],mc= 1241)) 
-```
 
 ```{r, trend-stock-hist, fig.width=8, fig.height=4,warning=FALSE, message=FALSE}
 kobe:::trendPhaseMar2(window(mvln[["stock"]],start=2000, end=2070),ylim=3, 
@@ -252,6 +253,65 @@ plot(mvln,iter=c(5,17))+
 
 `r pagebreak()`
 
+
+```{r}
+mcmcKobe<-function(dat){ 
+  F=dat[,grep("F_",names(dat))]
+  F=cbind(iter=seq(dim(F)[[1]]),F[,substr(names(F),1,2)=="F_"])
+  F=melt(F,id="iter")
+  F=cbind(data=F$value,iter=F$iter,mdply(ac(F$variable),function(x) unlist(strsplit(x,"_"))))
+  
+  B=dat[,grep("Bratio_",names(dat))]
+  B=cbind(iter=seq(dim(B)[[1]]),B[,substr(names(B),1,7)=="Bratio_"])
+  B=melt(B,id="iter")
+  B=cbind(data=B$value,iter=B$iter,mdply(ac(B$variable),function(x) unlist(strsplit(x,"_"))))
+  
+  FLQuants(stock  =as.FLQuant(with(B,data.frame(year=V2,iter=iter,data=data))),
+           harvest=as.FLQuant(with(F,data.frame(year=V2,iter=iter,data=data))))}  
+
+
+mcmc1=mcmcKobe(read.csv("~/Desktop/flr/ss3diags/data/derived_posteriors.sso",sep=" ")) 
+mcmc2=mcmcKobe(read.csv("~/Desktop/risk/caseStudies/bsh/data/mcmc/derived_posteriors.sso",sep=" ")) 
+
+mcmc1=iter(mcmc1,seq(1000))
+mcmc2=iter(mcmc2,seq(1, 10000,10)+2401)
+
+mvln=iter(mvln,seq(1000))
+```
+
+
+```{r, trend-mcmc-mvln, fig.width=8,fig.height=4}
+kobe:::trendPhaseMar3(window(FLQuants("1"=mcmc1[["stock"]],"3"=mvln[["stock"]]),end=2022),ylim=3)
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Comparison of MVLN and MCMC historical a trends in $SSB/B_{MSY}$, ribbons show inter-quartiles and $90_{th}$ percentile, relative to median.
+
+
+```{r, kobe-mcmc-mvln, fig.width=8,fig.height=8}
+kb=rbind(cbind(run="mvln",model.frame(FLQuants(stock=mvln[["stock"]][,"2022"],
+                                               harvest=mvln[["harvest"]][,"2021"]),drop=T)), 
+         cbind(run="mcmc",model.frame(FLQuants(stock=mcmc1[["stock"]][,"2022"],
+                                               harvest=mcmc1[["harvest"]][,"2021"]),drop=T)))
+kobe:::kobePhaseMar2(kb,
+                     quadcol=c("red","green","yellow","orange"),size=0.1)
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Comparison of MVLN and MCMC simulations for Kobe Phase Plot of of $B/SSB_{MSY}$ & $F/F_{MSY}$.
+
+
+```{r, kobe-mcmc-2, fig.width=8,fig.height=8}
+dat=mdply(expand.grid(F=2020:2023,SSB=2020:2023), function(F,SSB) 
+  model.frame(FLQuants(harvest=mcmc1[[ "harvest"]][,ac(F)],
+                       stock  =mcmc1[["stock"]][  ,ac(SSB)]),drop=T))
+kobe::kobePhase(dat)+
+  geom_point(aes(stock,harvest),shape=21,fill="grey",col="black",size=0.75,linewidth=0.3)+
+  geom_label(aes(x=0.2,y=0.1,label=signif(V1,2)),
+             data=ddply(dat,.(F,SSB), with, cor(log(stock),log(harvest))))+
+  facet_grid(F~SSB)
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, with correlations between years 
+
 \tiny
 
 
@@ -259,7 +319,7 @@ plot(mvln,iter=c(5,17))+
 
 
 ```{r, covar}
-cor =sscor(base$CoVar)
+cor =sscor(bsh300$CoVar)
 vars=c(paste("Bratio",2020:2022,sep="_"),paste("F",2020:2022,sep="_"))
 cor =cor[vars,vars]
         
@@ -268,14 +328,14 @@ print(cor,digits=2)
 
 **Table `r iTab=iTab+1; iTab`.** Covariances simulated by MVLN
 
-```{r, covar-2, eval=FALSE}
+```{r, covar-2}
 cor=cor(cast(subset(as.data.frame(mvln[c("stock","harvest")],drop=T),year%in%2020:2022),iter~qname+year,value="data")[,-1])
 dimnames(cor)=list(vars, vars) 
 
 print(cor,digits=2)
 ```
 
-**Table `r iTab=iTab+1; iTab`.** Estimates of $SSB/B_{MSY}$
+**Table `r iTab=iTab+1; iTab`.** Estimates of $SSB/B_{MSY}$ and  $F/F_{MSY}$ 
 
 ```{r}
 window(hatFLQ(sshat(bsh300$derived_quants))[c("stock","harvest")],start=2020,end=2023)
@@ -370,6 +430,16 @@ t3=latex(kobe:::shade(k2sm["overFishing",,ac(2023:2032)],pct=""),
 ```{r, eval=FALSE}
 kab=knitr::kable(k2sm["overFished",,ac(2023:2032)], caption="Table 1: ", booktabs=T, digits=2, row.names=FALSE)
 kable_classic_2(kab, full_width=F, latex_options="hold_position")
+```
+
+
+**Table `r iTab=iTab+1; iTab`.** Covariances simulated by MCMC
+
+```{r, covar-3}
+cor=cor(cast(subset(as.data.frame(mcmc1[c("stock","harvest")],drop=T),year%in%2020:2022),iter~qname+year,value="data")[,-1])
+dimnames(cor)=list(vars, vars) 
+
+print(cor,digits=2)
 ```
 
 \normalsize
@@ -489,7 +559,7 @@ ggplot(subset(dat,year<2040))+geom_point(aes(year,data))+facet_grid(fleet~.,scal
 library(calculus)
 library(compositions)
 
-sim1=exp(mvtnorm::rmvnorm(1000, mean=mvlmu[c("Bratio_2020","F_2020")], 
+sim1=exp(mvtnorm::rmvnorm(1000,mean=mvlmu[c("Bratio_2020","F_2020")], 
                                sigma=cvr[  c("Bratio_2020","F_2020"),
                                          c("Bratio_2020","F_2020")], 
                           method = c("svd")))
@@ -511,7 +581,6 @@ cov=cor2cov(cor,hat[,"cv"])
 fn<-function(x,y)
  dnorm.aplus(c(x,y),hat[,"hat"],cov)
 integral(fn, bounds=list(x=c(1,0),y=c(Inf,1)))$value
-  
 ```
 
 
