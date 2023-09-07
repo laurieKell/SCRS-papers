@@ -35,7 +35,9 @@ sscor<-function(covar){
     substr(cor$label.j, 1, 2) %in% c("Re","F_", "Br")
   cor <- cor[flag,]
   
-  cor =rbind(cor,cbind(cor,label.i=label.j,label.j=label.i))
+  cor2=cor
+  names(cor2)[1:2]=c("label.j","label.i")
+  cor =rbind(cor,cor2)
   cor =subset(cor,!(is.na(label.i)|is.na(label.j)))
   
   cor =dcast(cor, label.i ~ label.j, value.var="corr")
@@ -108,7 +110,6 @@ sshat<-function(hat){
   
   names(y)=c("label","hat","stdLog","std","cv")
   y}
-
 
 mcmcKobe<-function(dat){ 
   F=dat[,grep("F_",names(dat))]
