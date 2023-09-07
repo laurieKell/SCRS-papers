@@ -35,7 +35,7 @@ sscor<-function(covar){
     substr(cor$label.j, 1, 2) %in% c("Re","F_", "Br")
   cor <- cor[flag,]
   
-  cor =rbind(cor,transform(cor,label.i=label.j,label.j=label.i))
+  cor =rbind(cor,cbind(cor,label.i=label.j,label.j=label.i))
   cor =subset(cor,!(is.na(label.i)|is.na(label.j)))
   
   cor =dcast(cor, label.i ~ label.j, value.var="corr")
@@ -103,8 +103,8 @@ sshat<-function(hat){
           hat[grep(paste("F",     "",sep="_"),hat$label),])
   y=y[substr(y$label,1,2)%in%c("F_","Br","Re"),]
   y=subset(y,!label%in%c("Recr_Initial","Recr_unfished","Recr_Virgin","Ret_Catch_MSY"))
-  y=transform(y,cv2=(y$stddev/y$value)^2,
-                var=log(1+(y$stddev/y$value)^2))[,-c(4,5)]
+  y=cbind(y,"cv2"=(y$stddev/y$value)^2,
+            "var"=log(1+(y$stddev/y$value)^2))[,-c(4,5)]
   
   names(y)=c("label","hat","stdLog","std","cv")
   y}
@@ -136,13 +136,13 @@ covFLQ<-function(covar){
 
 hatFLQ<-function(hat,data="hat"){
   r=subset(hat,substr(label,1,5)=="Recr_")
-  r=transform(r,year=an(substr(label,6,nchar(label))))
+  r=cbind(r,year=an(substr(label,6,nchar(label))))
   
   b=subset(hat,substr(label,1,7)=="Bratio_")
-  b=transform(b,year=an(substr(label,8,nchar(label))))
+  b=cbind(b,year=an(substr(label,8,nchar(label))))
   
   f=subset(hat,substr(label,1,2)=="F_")
-  f=transform(f,year=an(substr(label,3,nchar(label))))
+  f=cbind(f,year=an(substr(label,3,nchar(label))))
   
   rtn=rbind(cbind(qname="recruits",r),
             cbind(qname="stock",   b),
