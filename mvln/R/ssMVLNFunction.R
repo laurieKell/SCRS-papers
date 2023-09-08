@@ -9,12 +9,32 @@
 # XX {{{
 # }}}
 
-# sscor
-
 #' @examples
+#' library(ss3diags)
+#' 
 #' data(sma)
 #' sscor(sma$CoVar)
+#'
+#' hat(sma$derived_quants)
+#'
+#' ssmvln(sma$CoVar,sma$derived_quants)
 
+## Returns stock & harvest as data.frame
+sshat<-function(hat){
+  names(hat)  =tolower(names(hat))
+  
+  y=rbind(hat[grep(paste("Recr","",  sep="_"),hat$label),],
+          hat[grep(paste("Bratio","",sep="_"),hat$label),],
+          hat[grep(paste("F",     "",sep="_"),hat$label),])
+  y=y[substr(y$label,1,2)%in%c("F_","Br","Re"),]
+  y=subset(y,!label%in%c("Recr_Initial","Recr_unfished","Recr_Virgin","Ret_Catch_MSY"))
+  y=transform(y,cv2=(y$stddev/y$value)^2,
+              var=log(1+(y$stddev/y$value)^2))[,-c(4,5)]
+  
+  names(y)=c("label","hat","stdLog","std","cv")
+  y}
+
+## Returns covariances as matrix
 sscor<-function(covar){
   # UNIFY colnames
   setnames(covar, tolower(names(covar)))
@@ -35,9 +55,7 @@ sscor<-function(covar){
     substr(cor$label.j, 1, 2) %in% c("Re","F_", "Br")
   cor <- cor[flag,]
   
-  cor2=cor
-  names(cor2)[1:2]=c("label.j","label.i")
-  cor =rbind(cor,cor2)
+  cor =rbind(cor,transform(cor,label.i=label.j,label.j=label.i))
   cor =subset(cor,!(is.na(label.i)|is.na(label.j)))
   
   cor =dcast(cor, label.i ~ label.j, value.var="corr")
@@ -52,11 +70,7 @@ sscor<-function(covar){
   dimnames(cor)=list(dmns,dmns)
   cor}
 
-
-#' @examples
-#' data(sma)
-#' ssmvln(sma$CoVar, sma$derived_quants)
-
+# generates time series with serial correlations
 ssmvln<-function(covar,hat,mc=5000,new=!FALSE){
   names(hat)  =tolower(names(hat))
   names(covar)=tolower(names(covar))
@@ -96,34 +110,6 @@ ssmvln<-function(covar,hat,mc=5000,new=!FALSE){
   setnames(dat, c("variable", "value"), c("qname", "data"))
   return(dat)}
 
-## Returns stock & harvest as data.frame
-sshat<-function(hat){
-  names(hat)  =tolower(names(hat))
-  
-  y=rbind(hat[grep(paste("Recr","",  sep="_"),hat$label),],
-          hat[grep(paste("Bratio","",sep="_"),hat$label),],
-          hat[grep(paste("F",     "",sep="_"),hat$label),])
-  y=y[substr(y$label,1,2)%in%c("F_","Br","Re"),]
-  y=subset(y,!label%in%c("Recr_Initial","Recr_unfished","Recr_Virgin","Ret_Catch_MSY"))
-  y=cbind(y,"cv2"=(y$stddev/y$value)^2,
-            "var"=log(1+(y$stddev/y$value)^2))[,-c(4,5)]
-  
-  names(y)=c("label","hat","stdLog","std","cv")
-  y}
-
-mcmcKobe<-function(dat){ 
-  F=dat[,grep("F_",names(dat))]
-  F=cbind(iter=seq(dim(F)[[1]]),F[,substr(names(F),1,2)=="F_"])
-  F=melt(F,id="iter")
-  F=cbind(data=F$value,iter=F$iter,mdply(ac(F$variable),function(x) unlist(strsplit(x,"_"))))
-  
-  B=dat[,grep("Bratio_",names(dat))]
-  B=cbind(iter=seq(dim(B)[[1]]),B[,substr(names(B),1,7)=="Bratio_"])
-  B=melt(B,id="iter")
-  B=cbind(data=B$value,iter=B$iter,mdply(ac(B$variable),function(x) unlist(strsplit(x,"_"))))
-  
-  FLQuants(stock  =as.FLQuant(with(B,data.frame(year=V2,iter=iter,data=data))),
-           harvest=as.FLQuant(with(F,data.frame(year=V2,iter=iter,data=data))))}  
 
 ## FLQuants ####################################################################
 ## Reads in data.frame generates FLQuants ######################################
@@ -137,13 +123,13 @@ covFLQ<-function(covar){
 
 hatFLQ<-function(hat,data="hat"){
   r=subset(hat,substr(label,1,5)=="Recr_")
-  r=cbind(r,year=an(substr(label,6,nchar(label))))
+  r=transform(r,year=as.numeric(substr(label,6,nchar(label))))
   
   b=subset(hat,substr(label,1,7)=="Bratio_")
-  b=cbind(b,year=an(substr(label,8,nchar(label))))
+  b=transform(b,year=as.numeric(substr(label,8,nchar(label))))
   
   f=subset(hat,substr(label,1,2)=="F_")
-  f=cbind(f,year=an(substr(label,3,nchar(label))))
+  f=transform(f,year=as.numeric(substr(label,3,nchar(label))))
   
   rtn=rbind(cbind(qname="recruits",r),
             cbind(qname="stock",   b),

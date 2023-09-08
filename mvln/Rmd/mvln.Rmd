@@ -3,13 +3,13 @@ title: "MVLN "
 subtitle: "**North Atlantic Blue Shark**"
 author: "L Kell"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: html_document
+output: word_document
 mathjax: TRUE
 tags: FLR FLCore introduction
 license: Creative Commons Attribution-ShareAlike 4.0 International Public License
 # bibliography: refs.bib
 knit: (function(inputFile, encoding) {
-  rmarkdown::render(inputFile, encoding = encoding, output_dir = "../outputs/html") })
+  rmarkdown::render(inputFile, encoding = encoding, output_dir = "../outputs/word") })
 ---
   
 ```{r, knitr, eval=TRUE, echo=FALSE, warning=FALSE, cache=FALSE}
@@ -335,23 +335,34 @@ dimnames(cor)=list(vars, vars)
 print(cor,digits=2)
 ```
 
-**Table `r iTab=iTab+1; iTab`.** Estimates of $SSB/B_{MSY}$ and  $F/F_{MSY}$ 
+**Table `r iTab=iTab+1; iTab`.** Estimates of $SSB/B_{MSY}$ and  $F/F_{MSY}$, i.e. Bratio and F
 
 ```{r}
-window(hatFLQ(sshat(bsh300$derived_quants))[c("stock","harvest")],start=2020,end=2023)
+source("~/Desktop/flr/ss3diags/R/ssMVLNFunction.R")
+
+
+ht=sshat(bsh300$derived_quants)
+
+dat=window(hatFLQV2(ht),start=2020,end=2023)[c("stock","harvest")]
+names(dat)=c("Bratio","F")
+dat=FLCore:::as.data.frame(dat,drop=TRUE)
+dat=cast(dat,qname~year,value="data")
+
+print(dat,digits=2)
 ```
 
-**Table `r iTab=iTab+1; iTab`.** Summary of MVLN terminal estimates of $SSB/B_{MSY}$
+
+**Table `r iTab=iTab+1; iTab`.** Lower percentile and median MVLN terminal estimates for $SSB/B_{MSY}$
 
 ```{r, summary-ssb-mvln}
-print(cast(as.data.frame(quantile(mvln[["stock"]][,ac(2020:2022)],probs=c(0.15,0.5))),iter~year,value="data"),digits=2)
+print(cast(as.data.frame(quantile(mvln[["stock"]][,ac(2020:2023)],probs=c(0.15,0.5))),iter~year,value="data"),digits=2)
 ```
 
 
 **Table `r iTab=iTab+1; iTab`.** Summary of MVLN terminal estimates of $F/F_{MSY}$
 
 ```{r, summary-f-mvln}
-print(cast(as.data.frame(quantile(mvln[["harvest"]][,ac(2020:2022)],probs=c(0.35,0.5))),iter~year,value="data"),digits=2)
+print(cast(as.data.frame(quantile(mvln[["harvest"]][,ac(2020:2023)],probs=c(0.35,0.5))),iter~year,value="data"),digits=2)
 ```
 
 
