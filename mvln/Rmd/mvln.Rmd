@@ -44,6 +44,10 @@ pagebreak <- function() {
 ```
 
 
+```{r}
+source("../R/ssMVLNFunction.R")
+```
+
 ```{r, warning=FALSE,  message=FALSE, error=FALSE}
 library(r4ss)
 library(ss3diags)     
@@ -69,13 +73,7 @@ library(kableExtra)
 setwd("~/Desktop/SCRS-papers/mvln/Rmd")
 ```
 
-```{r, source, echo=FALSE}
-source("../R/ssMVLNFunction.R")  
-```
-
 ```{r, base, echo=FALSE}
-source("~/Desktop/SCRS-papers/mvln/R/ssMVLNFunction.R")
-
 base=SS_output("../data/inputs/run_06",verbose=FALSE,hidewarn=FALSE,printstat=FALSE)
 
 mvln =mvlnFLQ(ssmvln(base[["CoVar"]],base[["derived_quants"]],mc= 1241))
@@ -338,12 +336,9 @@ print(cor,digits=2)
 **Table `r iTab=iTab+1; iTab`.** Estimates of $SSB/B_{MSY}$ and  $F/F_{MSY}$, i.e. Bratio and F
 
 ```{r}
-source("~/Desktop/flr/ss3diags/R/ssMVLNFunction.R")
-
-
 ht=sshat(bsh300$derived_quants)
 
-dat=window(hatFLQV2(ht),start=2020,end=2023)[c("stock","harvest")]
+dat=window(hatFLQ(ht),start=2020,end=2023)[c("stock","harvest")]
 names(dat)=c("Bratio","F")
 dat=FLCore:::as.data.frame(dat,drop=TRUE)
 dat=cast(dat,qname~year,value="data")
