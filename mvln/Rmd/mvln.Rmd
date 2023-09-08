@@ -299,7 +299,7 @@ kobe:::kobePhaseMar2(kb,
 
 ```{r, kobe-mcmc-2, fig.width=8,fig.height=8}
 dat=mdply(expand.grid(F=2020:2023,SSB=2020:2023), function(F,SSB) 
-  model.frame(FLQuants(harvest=mcmc1[[ "harvest"]][,ac(F)],
+  model.frame(FLQuants(harvest=mcmc1[["harvest"]][,ac(F)],
                        stock  =mcmc1[["stock"]][  ,ac(SSB)]),drop=T))
 kobe::kobePhase(dat)+
   geom_point(aes(stock,harvest),shape=21,fill="grey",col="black",size=0.75,linewidth=0.3)+
@@ -308,7 +308,27 @@ kobe::kobePhase(dat)+
   facet_grid(F~SSB)
 ```
 
-**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, with correlations between years 
+**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, based on Run6, with correlations between years 
+
+
+```{r, kobe-mcmc-3, fig.width=8,fig.height=8}
+dat=mdply(expand.grid(F=2020:2023,SSB=2020:2023), function(F,SSB) 
+  model.frame(FLQuants(harvest=mcmc2[["harvest"]][,ac(F)],
+                       stock  =mcmc2[["stock"]][  ,ac(SSB)]),drop=T))
+kobe::kobePhase(dat)+
+  geom_point(aes(stock,harvest),shape=21,fill="grey",col="black",size=0.75,linewidth=0.3)+
+  geom_label(aes(x=0.2,y=0.1,label=signif(V1,2)),
+             data=ddply(dat,.(F,SSB), with, cor(log(stock),log(harvest))))+
+  facet_grid(F~SSB)
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, based on new forecast.ss, with correlations between years 
+
+
+
+
+
+
 
 \tiny
 
