@@ -325,6 +325,34 @@ kobe::kobePhase(dat)+
 **Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, based on new forecast.ss, with correlations between years 
 
 
+```{r, kobe-mcmc-4, fig.width=8,fig.height=8}
+dat=mdply(data.frame(Year=2025:2030), function(Year) 
+  model.frame(FLQuants(harvest=mcmc1[["harvest"]][,ac(Year)],
+                       stock  =mcmc1[["stock"]][  ,ac(Year)]),drop=T))
+kobe::kobePhase(dat)+
+  scale_y_continuous(limits=c(0,4))+
+  geom_point(aes(stock,harvest),shape=21,fill="grey",col="black",size=0.75,linewidth=0.3)+
+  geom_label(aes(x=0.2,y=0.1,label=signif(V1,2)),
+             data=ddply(dat,.(Year), with, cor(log(stock),log(harvest))))+
+  facet_wrap(~Year)
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, based on run6, with correlations between years 
+
+
+
+```{r, kobe-mcmc-5, fig.width=8,fig.height=8}
+dat=mdply(data.frame(Year=2025:2030), function(Year) 
+  model.frame(FLQuants(harvest=mcmc2[["harvest"]][,ac(Year)],
+                       stock  =mcmc2[["stock"]][  ,ac(Year)]),drop=T))
+kobe::kobePhase(dat,xlim=c(0,2), ylim=c(0,4))+
+  geom_point(aes(stock,harvest),shape=21,fill="grey",col="black",size=0.75,linewidth=0.3)+
+  geom_label(aes(x=0.2,y=0.1,label=signif(V1,2)),
+             data=ddply(dat,.(Year), with, cor(log(stock),log(harvest))))+
+  facet_wrap(~Year)
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, based on new forecast.ss, with correlations between years 
 
 
 
