@@ -3,7 +3,10 @@ title: "MVLN "
 subtitle: "**North Atlantic Blue Shark**"
 author: "L Kell"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: word_document
+output: 
+  word_document:
+       includes:
+            in_header: header.tex 
 mathjax: TRUE
 tags: FLR FLCore introduction
 license: Creative Commons Attribution-ShareAlike 4.0 International Public License
@@ -638,3 +641,31 @@ integral(fn, bounds=list(x=c(1,0),y=c(Inf,1)))$value
 ```
 
 
+```{r}
+run6  =SS_output("~/Desktop/SCRS-papers/mvln/data/inputs/run_06",
+                 verbose=FALSE,hidewarn=FALSE,printstat=FALSE)[c("CoVar","derived_quants")]
+bsh300=SS_output("~/Desktop/SCRS-papers/mvln/data/inputs/forecasts/300",
+                 verbose=FALSE,hidewarn=FALSE,printstat=FALSE)[c("CoVar","derived_quants")]
+covRun6=sscor(run6$CoVar)
+cov300 =sscor(bsh300$CoVar)
+
+vars=c(paste("Bratio",2020:2023,sep="_"),paste("F",2020:2023,sep="_"))
+```
+
+`r pagebreak()`
+\blandscape
+
+**Table `r iTab=iTab+1; iTab`.** Covariances from Run 6
+
+```{r}
+print(covRun6[vars,vars],digits=2)
+```
+
+
+**Table `r iTab=iTab+1; iTab`.** Covariances from new forecast file
+
+```{r}
+print(cov300[ vars,vars],digits=2)
+```
+
+\elandscape
