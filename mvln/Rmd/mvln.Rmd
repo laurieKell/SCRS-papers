@@ -5,8 +5,8 @@ author: "L Kell"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   word_document:
-       includes:
-            in_header: header.tex 
+#       includes:
+#            in_header: header.tex 
 mathjax: TRUE
 tags: FLR FLCore introduction
 license: Creative Commons Attribution-ShareAlike 4.0 International Public License
@@ -490,14 +490,73 @@ kable_classic_2(kab, full_width=F, latex_options="hold_position")
 ```
 
 
-**Table `r iTab=iTab+1; iTab`.** Covariances simulated by MCMC
+```{r}
+run6  =SS_output("~/Desktop/SCRS-papers/mvln/data/inputs/run_06",
+                 verbose=FALSE,hidewarn=FALSE,printstat=FALSE)[c("CoVar","derived_quants")]
+bsh300=SS_output("~/Desktop/SCRS-papers/mvln/data/inputs/forecasts/300",
+                 verbose=FALSE,hidewarn=FALSE,printstat=FALSE)[c("CoVar","derived_quants")]
+covRun6=sscor(run6$CoVar)
+cov300 =sscor(bsh300$CoVar)
 
-```{r, covar-3}
-cor=cor(cast(subset(as.data.frame(mcmc1[c("stock","harvest")],drop=T),year%in%2020:2022),iter~qname+year,value="data")[,-1])
+vars=c(paste("Bratio",2021:2023,sep="_"),paste("F",2021:2023,sep="_"))
+```
+
+`r pagebreak()`
+\blandscape
+
+**Table `r iTab=iTab+1; iTab`.** SS3 covariances from Run 6
+
+```{r}
+print(covRun6[vars,vars],digits=2) 
+```
+
+**Table `r iTab=iTab+1; iTab`.** MVLN covariances using Run 6
+
+```{r, covar-6}
+mvln=mvlnFLQ(ssmvln(run6[["CoVar"]],run6[["derived_quants"]],mc=1241))
+cor=cor(cast(subset(as.data.frame(mvln[c("stock","harvest")],drop=T),year%in%2021:2023),iter~qname+year,value="data")[,-1])
 dimnames(cor)=list(vars, vars) 
 
 print(cor,digits=2)
 ```
+**Table `r iTab=iTab+1; iTab`.** MCMC covariances using Run 6
+
+```{r, covar-4}
+cor=cor(cast(subset(as.data.frame(mcmc1[c("stock","harvest")],drop=T),year%in%2021:2023),iter~qname+year,value="data")[,-1])
+dimnames(cor)=list(vars, vars) 
+
+print(cor,digits=2)
+```
+
+
+
+**Table `r iTab=iTab+1; iTab`.** SS3 covariances from new forecast file
+
+```{r}
+print(cov300[ vars,vars],digits=2) 
+```
+
+**Table `r iTab=iTab+1; iTab`.** MVLN covariances using new forecast.ss file
+
+```{r, covar-7}
+mvln=mvlnFLQ(ssmvln(bsh300$CoVar,bsh300$derived_quants,mc=1241))
+cor=cor(cast(subset(as.data.frame(mvln[c("stock","harvest")],drop=T),year%in%2021:2023),iter~qname+year,value="data")[,-1])
+dimnames(cor)=list(vars, vars) 
+
+print(cor,digits=2)
+```
+
+**Table `r iTab=iTab+1; iTab`.** MCMC covariances using new forecast.ss file
+
+```{r, covar-5}
+cor=cor(cast(subset(as.data.frame(mcmc2[c("stock","harvest")],drop=T),year%in%2021:2023),iter~qname+year,value="data")[,-1])
+dimnames(cor)=list(vars, vars) 
+
+print(cor,digits=2)
+```
+
+
+\elandscape
 
 \normalsize
 
@@ -640,32 +699,3 @@ fn<-function(x,y)
 integral(fn, bounds=list(x=c(1,0),y=c(Inf,1)))$value
 ```
 
-
-```{r}
-run6  =SS_output("~/Desktop/SCRS-papers/mvln/data/inputs/run_06",
-                 verbose=FALSE,hidewarn=FALSE,printstat=FALSE)[c("CoVar","derived_quants")]
-bsh300=SS_output("~/Desktop/SCRS-papers/mvln/data/inputs/forecasts/300",
-                 verbose=FALSE,hidewarn=FALSE,printstat=FALSE)[c("CoVar","derived_quants")]
-covRun6=sscor(run6$CoVar)
-cov300 =sscor(bsh300$CoVar)
-
-vars=c(paste("Bratio",2020:2023,sep="_"),paste("F",2020:2023,sep="_"))
-```
-
-`r pagebreak()`
-\blandscape
-
-**Table `r iTab=iTab+1; iTab`.** Covariances from Run 6
-
-```{r}
-print(covRun6[vars,vars],digits=2)
-```
-
-
-**Table `r iTab=iTab+1; iTab`.** Covariances from new forecast file
-
-```{r}
-print(cov300[ vars,vars],digits=2)
-```
-
-\elandscape
