@@ -244,17 +244,18 @@ ggplot(transform(scens$ll,beta=ac(beta)))+
 
 **Figure `r iFig=iFig+1; iFig`** Likehihood profile. 
 
-```{r, LL2, fig.height=10,fig.width=12}
+```{r, LL2, fig.height=12,fig.width=12}
 lls=mdply(scen, function(M,beta) { 
   load(file.path(path,M,beta,"ss.RData"))
   data.frame(component=dimnames(ss$likelihoods_used)[[1]],
              ll       =ss$likelihoods_used[,-2])})
-
-ggplot(transform(subset(lls,!(component%in%c("InitEQ_Regime","Crash_Pen"))),
+ 
+unique(lls$component)
+ggplot(transform(subset(lls,!(component%in%c("InitEQ_Regime","Crash_Pen","Equil_catch","Parm_devs"))),
                  beta=ac(beta),
                  component=gsub("_"," ",unique(component))))+
   geom_line(aes(M,ll,col=beta),linewidth=1.5)+
-  facet_wrap(.~component,ncol=3,scale="free")+
+  facet_wrap(.~component,ncol=2,scale="free")+  
   xlab("M Multiplier")+
   ylab("Likelihood")+
   theme_bw()+theme(legend.position="bottom",
@@ -263,7 +264,7 @@ ggplot(transform(subset(lls,!(component%in%c("InitEQ_Regime","Crash_Pen"))),
 
 **Figure `r iFig=iFig+1; iFig`** Likehihood profile by component 
 
-```{r, pFuncs, eval=!FALSE, fig.height=6,fig.width=12}
+```{r, pFuncs, eval=!FALSE, fig.height=8 ,fig.width=12}
 dat=mlply(with(scen,file.path(path,M,beta)),
                function(x)
                      tryIt(SS_output(x,verbose=FALSE,hidewarn=FALSE,printstat=FALSE)))
