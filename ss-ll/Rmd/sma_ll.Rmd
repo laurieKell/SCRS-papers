@@ -1,0 +1,403 @@
+---
+title: "WKBSEABASS North"
+subtitle: "Sensitivity Analysis for M and beta"
+author: 
+  L.T. Kell
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{Estimating $F_{MNY}$ for Atlantic Mackerel}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+Likelihood profiles can be used to identify where there are data conflicts and whether fixed parameters are supported by the data and what drives the assessment and the grid the importance for management 
+
+Once the Base Cases is agreed a sensitivity analysis for a grid of M and beta can be conducted. These parameters are normally fixed in stock assessments, and have a big impact on the estimates of stock status, reference points, and management advice. It is important to see if there is any information in the data to support the choices made as well as the consequences.
+
+
+## Methods
+
+### Likehihood Profiles 
+
+Once a base case has been selected, using goodness-of-fit diagnostics a sensitivity analysis can be conducted to determine which datasets, likelihood components and fixed parameters have the biggest effect on estimates of historical and current status relative to reference points. If estimates from alternative plausible models, based on the available evidence and knowledge, fall outside the confidence or credibility intervals of the base case, this suggest that advice based on a single base case may not be robust. In which case an ensemble of models could be run or a variety of Operating Models conditioned as part of an Management Strategy Evaluation (MSE) to evaluate the robustness of advice. 
+
+**Figure 1** shows the likehihood profile and **Figure 2** the likehihood profile by component 
+
+For example, there is seldom information in stock assessment datasets to estimate parameters such as $M$ (natural mortality) and $h$ beta, and so these have either to be fixed or provided as priors. Therefore, a grid based on a range of $M$ and $h$ was used to rerun the assessment. The  contributions of the various components, (i.e age composition, length composition, survey indices, recruitment deviations, catch data, and priors), to the Likelihood can then be profiled to analyse how each component’s likelihood changes as a function of $M$ and $h$. Larger likelihood values indicate greater influence of an a component, and if varies widely as a parameter is varied this it indicates strong sensitivity to that parameter. If minima in the profiles are found at different values of the fuxed parameters this identifies influential but conflicting components. Likelihood Weights (lambda values) assigned to a component will determines it’s influence on the total likelihood. The stability of estimates, can also be considered by perturbing initial values. 
+
+### Production Functions 
+
+The production functions, Yield vs. Spawning Stock Biomass (SSB) across different values of natural mortality ($M$) and beta ($s$) are summarised in **Figure 3**. 
+
+The production curves are concave, with a peak at MSY, showing the biomass level that produces MSY, the dashed line that passes through [BMSY, MSY] indicates $F_{MSY}$. If current catches (red point) are above the curve then the biomass isn't being replaced and the stock will decline, alternatively if it is below the curve then production will be greater than removals and so the stock will increase. For a given level of $F$ if there is no process error then then stock will converge to a corresponding point on the production function. For large process error the stock will cycle anti-clockwise round the production function. THe red kline indicates the current level of $F$, and it's intersect with the production function the equilibrium value for the current $F$. The green quadrant shows where the stock is greater than $B_{MSY}$ and $F$< $F+{MSY}$, the red where the stock is less than $B_{MSY}$ and $F$> $F+{MSY}$.  The green lines identify the ICES target region based on 40% of $B_{0}$. $F$ and yield may be greater than the $MSY$ levels if the stock is greater than $B_{MSY}$, as indicated by the orange triangle. If $F$ is greater than the slope at the origin then the stock will collapse.
+
+## Results
+
+### Likelihood profiles 
+
+The likelihood profile as a function of the fixed parameters $M$ (natural mortality) and $h$ beta,is shown in **Figure 1**, and the relative impacts of the different likelihoods components in **Figure 2**.
+
+The dominant components, i.e. those with largest values, are the age and length compositions. The survey component contributes negatively to the likelihood, but its magnitude is much smaller compared to the composition data sets. The catch, equilibrium catch, and recruitment components make smaller contributions to the log-likelihood, while forecast Recruitment, parameter deviations, and parameter softbounds make negligible contributions. For a beta of 0.8 and an M 80% of the base case value the likilihood is improved, this suggests that a global minima might not have been found for the base case.  
+
+The log-likelihood  changes slightly with $M$, primarily driven by the Age and Length Composition. The other minor components show less variation with $M$, reflecting their limited sensitivity to this parameter. Therefore the age and length composition contributions are key data sources for parameter estimation, since the small contributions from other components imply they have less influence on model outcomes.  This highlights the importance to the assessment of  the age and length Composition when interpreting and refining the SS3 models.
+
+### Production functions
+
+For lower $M$ values (e.g., $M = 0.5$) $B_0$ is higher, and the ratio of $B_{MSY}/B_0$ decreases as $M$ increases. $F_{MSY}$ as indicated by the slope of the dashed also increases with $M$, although $MSY$ only increases slightly. The ICES taget region delimited by the green lines is found within the green $MSY$ quadrant. The stock is only acheiving the ICES targets if $M$ is high, as there is an inverse relationship between $M$ and $F$ so that $Z$ stays relatively constant. The red line denotes current $F$ and is only below $F_{MSY}$ for low $M$. beta has less of an effect that $M$, the main effect is on $F$ as beta increases $F_{MSY}$ increases, so that higher fishing levels are sustainable. 
+
+
+- $MSY$ changes with  $M$, highlighting the importance of natural mortality for management decisions.
+- Length and age composition data are critical for model fitting and dominate likelihood contributions.
+- Recruitment and survey data play smaller roles but may still influence specific aspects of the model.
+  
+
+```{r, knitr, eval=TRUE, echo=FALSE, warning=FALSE, cache=FALSE}
+library(knitr)
+
+opts_chunk$set(comment   =NA, 
+               warning   =FALSE, 
+               message   =FALSE, 
+               error     =FALSE, 
+               echo      =FALSE, 
+               cache     =TRUE, 
+               cache.path="../cache/North-Mh/",
+               fig.path  ="../figs/North-Mh",
+               fig.width =8,
+               fig.height=6,
+               dev       ="png")
+
+iFig=0
+iTab=0
+```
+
+```{r, eval=FALSE}
+# Install CRAN packages
+pkgs_cran <- c("ggplot2", "ggpubr", "GGally", "grid", "plyr", "dplyr", 
+               "reshape", "data.table", "stringr", "foreach", "doParallel")
+
+install.packages(pkgs_cran)
+
+# Install FLR packages from FLR repository
+install.packages(c("FLCore", "FLBRP", "ggplotFL","ss3om"), 
+                repos = "https://flr.r-universe.dev")
+
+# Install ICES TAF package
+install.packages("TAF", repos = "https://ices-tools-prod.r-universe.dev")
+
+library(remotes)
+
+# Install FLCandy from GitHub
+remotes::install_github("laurieKell/FLCandy")
+
+# Install kobe package
+remotes::install_github("fishfollower/kobe")
+
+# Install Stock Synthesis packages
+remotes::install_github("r4ss/r4ss")
+remotes::install_github("jabbamodel/ss3diags", force = TRUE)
+
+r4ss::get_ss3_exe(dir = model_dir, version = "v3.30.22.1")
+```
+
+```{r, pkgs}
+require(ggplot2)
+require(ggpubr)
+library(GGally)
+library(ggpubr)
+library(grid) 
+
+library(plyr)
+library(dplyr)
+library(reshape)
+
+library(TAF)
+library(data.table)
+
+library(stringr)
+library(gam)
+
+library(FLCore)
+library(FLBRP)
+library(ggplotFL)
+library(FLCandy)
+library(kobe)
+
+library(r4ss)
+library(ss3om)
+library(ss3diags)     
+
+library(foreach)
+library(doParallel)
+
+theme_set(theme_minimal(base_size=12))
+```
+
+
+
+```{r, path, eval=TRUE}
+setwd("/home/laurie/Desktop/SCRS-papers/ss-ll/Rmd")
+```
+
+
+```{r, scenarios, echo=TRUE}
+scen=expand.grid(M   =c(seq(0.5,1,length.out=5),seq(1,1.5,length.out=5)[-1]),
+                 beta=c(0.5,1, 1.5))
+ctrl="CONTROL.SS"
+
+path="../data/inputs/00_Model_run_files-20250423T155132Z-001"
+```
+
+
+## Figures
+
+```{r, run, eval=FALSE}
+cpFiles<-function(sourceDir, destDir) {
+    # Remove trailing slashes and asterisks
+    sourceDir <- gsub("[/*]+$", "", sourceDir)
+    
+    if (.Platform$OS.type == "windows") {
+      cmd=sprintf('xcopy "%s" "%s" /S /I /Y', 
+                    sourceDir,
+                    destDir)} else {
+      cmd=sprintf("find '%s' -type f -exec cp {} '%s' \\;",
+                    sourceDir,
+                    destDir)}
+    
+    system(cmd)}
+
+ncore=detectCores()-4  
+registerDoParallel(ncore)
+
+# Run
+mScen=foreach(i=seq(dim(scen)[1]), 
+                .packages=c("TAF","r4ss","ss3om","plyr","dplyr","FLCandy")) %dopar% {
+                  
+    beta=scen[i,"beta"]                   
+    M   =scen[i,"M"] 
+    
+    # Create dirs
+    if (!dir.exists(file.path(path,M)))      mkdir(file.path(path,M))
+    if (!dir.exists(file.path(path,M,beta))) mkdir(file.path(path,M,beta))
+  
+    # Copy files, excluding directories
+    cpFiles(file.path(path,"files/*"), file.path(path,M,beta))
+    
+    # Modify control file
+    parlines=SS_parlines(file.path(path,M,beta,ctrl))
+  
+    sln=parlines[grepl("SR_surv_Beta",c(parlines[,"Label"])),"Linenum"]
+    SS_changepars(dir=file.path(path,M,beta), ctlfile=ctrl, newctlfile=ctrl,linenums=seq(sln, sln),newvals=beta)
+  
+    ##mln=parlines[grepl("NatM",    c(parlines[,"Label"])),"Linenum"]
+    ##SS_changepars(dir=file.path(path,M,beta), ctlfile=ctrl, newctlfile=ctrl,linenums=seq(mln, mln),newvals=M)
+  
+    # Modify M vector
+    cFl  =scan(file.path(path,M,beta,ctrl),what=as.character(),sep="\n")
+    mRow=grep("# natm",tolower(cFl))
+    for (iRow in mRow){
+       mVec =as.numeric(unlist(strsplit(cFl[iRow], "\\s+")))
+       mVec =mVec[!is.na(mVec)]*M
+       cFl[iRow]=paste(mVec,collapse=" ")}
+    cat(cFl,file=file.path(path,M,beta,ctrl),sep="\n")
+  
+    # Run SS3
+    r4ss::run(file.path(path,M,beta), exe="ss", show_in_console=FALSE, skipfinished=FALSE)
+    
+    # get SS files
+    ss=FLCandy:::tryIt(SS_output(file.path(path,M,beta),verbose=FALSE,hidewarn=FALSE,printstat=FALSE))
+    save(ss,file=file.path(path,M,beta,"ss.RData"))
+  
+    # Create and save FLR objects
+    fls=FLCandy:::tryIt(buildFLSss330(ss))
+    save(fls,file=file.path(path,M,beta,"fls.RData"))
+  
+    # Save summary data.frames  
+    smry=FLCandy:::tryIt(FLCandy:::smrySS(file.path(path,M,beta)))
+    save(smry,file=file.path(path,M,beta,"smry.RData"))
+    
+    TRUE}
+
+stopImplicitCluster()
+```
+
+
+```{r, LL, fig.height=5, fig.width=10}
+scens=FLCandy:::unnest(mlply(scen, function(M,beta) {
+            load(file.path(path,M,beta,"smry.RData"))
+            smry}))
+scens=llply(scens, function(x) cbind(scen[x$Scenario,],x))
+
+ggplot(transform(scens$ll,beta=ac(beta)))+
+  geom_line(aes(M,ll,col=beta),linewidth=1.5)+
+  xlab("M Multiplier")+
+  ylab("Likelihood")+
+  theme(legend.position="bottom")+
+  theme_bw()
+```
+
+**Figure `r iFig=iFig+1; iFig`** Likehihood profile. 
+
+```{r, LL2, fig.height=10,fig.width=12}
+lls=mdply(scen, function(M,beta) { 
+  load(file.path(path,M,beta,"ss.RData"))
+  data.frame(component=dimnames(ss$likelihoods_used)[[1]],
+             ll       =ss$likelihoods_used[,-2])})
+
+ggplot(transform(subset(lls,!(component%in%c("InitEQ_Regime","Crash_Pen"))),
+                 beta=ac(beta),
+                 component=gsub("_"," ",unique(component))))+
+  geom_line(aes(M,ll,col=beta),linewidth=1.5)+
+  facet_wrap(.~component,ncol=3,scale="free")+
+  xlab("M Multiplier")+
+  ylab("Likelihood")+
+  theme_bw()+theme(legend.position="bottom",
+                   strip.text.y.left=element_text(angle=0))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Likehihood profile by component 
+
+```{r, pFuncs, eval=!FALSE, fig.height=6,fig.width=12}
+dat=mlply(with(scen,file.path(path,M,beta)),
+               function(x)
+                     tryIt(SS_output(x,verbose=FALSE,hidewarn=FALSE,printstat=FALSE)))
+eql=llply(dat, function(x) tryIt(curveSS(x,maxY=2.5))) 
+eql=Map(function(x) cbind(x, scen[x$Scenario,]), FLCandy:::unnest(eql[!unlist(llply(eql,is.null))]))
+
+b40=ddply(eql$curve, .(M,beta), with, {dif=abs(ssb-max(ssb)*0.4)
+                               data.frame(ssb  =max(ssb)*0.4,
+                                          yield=yield[order(dif)][1])})
+b40=rbind.fill(b40[,-4],b40,b40[,-3])
+b40$ssb[  is.na(b40$ssb)]  =Inf
+b40$yield[is.na(b40$yield)]=0
+
+b40  =subset(b40,         M%in%c(seq(0.5,1.5,0.25)))
+rfs  =subset(eql$refpts,  M%in%c(seq(0.5,1.5,0.25)))
+crv  =subset(eql$curve,   M%in%c(seq(0.5,1.5,0.25)))
+trngl=subset(eql$triangle,M%in%c(seq(0.5,1.5,0.25)))
+p=ggplot(rfs)+
+  facet_grid(beta~M, labeller = labeller(
+     M   =function(x) paste("M *", x),
+     beta=function(x) paste("beta =", x)),
+     scale="free",space="free")+
+  geom_polygon(data=trngl,aes(x, y),                    fill="orange",  alpha=0.5)+
+  geom_rect(aes(xmin=0,    xmax=bmsy,ymin=msy,ymax=Inf),fill="#D55E00", alpha=0.3)+
+  geom_rect(aes(xmin=bmsy, xmax=Inf, ymin=0,  ymax=msy),fill="#009E73", alpha=0.3)+
+  geom_rect(aes(xmin=0,    xmax=bmsy,ymin=0,  ymax=msy),fill="#F0E442", alpha=0.3)+
+  geom_rect(aes(xmin=bmsy, xmax=Inf, ymin=msy,ymax=Inf),fill="#F0E442", alpha=0.3)+
+  scale_x_continuous(labels=scales::comma)+
+  scale_y_continuous(labels=scales::comma)+
+  # Lines
+  geom_line(data = crv, aes(ssb, yield), color="blue")+
+  geom_abline(data=rfs, aes(slope=msy/bmsy, intercept=0), col="grey10", linetype=3) +
+  # Reference points
+  geom_point(aes(x=bmsy, y=msy), shape=21, fill="white", size=3)+
+  geom_text( aes(x=bmsy, y=msy,  label="MSY"), hjust=-0.2, vjust=-0.2)+
+  geom_path(aes(ssb,yield),col="green",data=b40)+
+  #scale_x_continuous(labels=scales::comma,breaks=seq(0, 100000,by=20000),
+  #                   expand=expansion(mult=c(0, 0.05))) +
+  scale_color_manual(values= c("blue", "black"),
+                    labels= c("Start", "End"),
+                    name  = "Time Period") +
+  labs(title="Production Function",
+       x    =expression("Total Biomass (t)"),
+       y    =expression("Production (t)"))+
+  theme_minimal(base_size = 16) +
+  theme(panel.grid.minor = element_blank(),
+      strip.background = element_rect(fill = "grey95"),
+      strip.text = element_text(face = "bold"),
+      axis.title = element_text(face = "bold"),
+      plot.title = element_text(hjust = 0.5, face = "bold"),
+      legend.position = "bottom",
+      axis.text.x=element_text(angle=45,hjust=1, size =10,margin=margin(t=10)),
+      panel.grid.major.x = element_line(color = "grey90"), 
+      axis.line = element_line(color = "black"))+
+   coord_cartesian(xlim=c(0,4e3),ylim=c(0,1.5e3), expand = FALSE)
+p
+# Time series
+p=p+
+  geom_point(data = subset(eql$tseries, year %in% c(min(year), max(year))),
+             aes(ssb, yield/2, color = factor(year)))+
+  geom_point(data = subset(eql$tseries, !(year %in% c(min(year), max(year)))),
+             aes(ssb, yield/2), color="grey10",fill="grey90", shape=21, size=1, stroke=0.2)+
+  geom_path(data=eql$tseries, aes(ssb, yield/2),
+  #            arrow = arrow(length = unit(0.2, "cm"), type="closed",angle=30,ends="last"),
+              linewidth = 0.25,color="grey10")+
+  geom_abline(aes(slope=yield/ssb,intercept=0),
+              data=subset(eql$tseries, year==max(year)),col="red")
+ 
+```
+
+**Figure `r iFig=iFig+1; iFig`** Production Functions 
+
+
+```{r}
+eql$refpts=merge(eql$refpts,ddply(eql$curve,.(beta,M), with, data.frame(b0=max(ssb))))
+pellat=ddply(eql$refpts,.(M,beta), with, pellatParams(k=b0,bmsy=bmsy,fmsy=(msy/bmsy)))
+refs=merge(eql$refpts,pellat)
+
+library(knitr)
+library(kableExtra)
+
+
+# Summarise the values of b0, msy, bmsy, and r by M and beta
+smry=aggregate(cbind(b0, msy, bmsy, r) ~ M + beta, data = refs, FUN = mean)
+
+# Create a formatted table
+kable(smry, caption = "Summary of b0, msy, bmsy, and r by M and beta") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+
+ggplot(reshape2::melt(refs[,c(1:5,7)],c("M","beta")))+
+         geom_line(aes(M,value,col=ac(beta)))+
+         facet_wrap(~variable,scale="free")
+```
+
+```{r}
+
+
+```
+
+```{r, retro, eval=FALSE}
+source("C:/active/FLCandy/R/ss-MVLN.R")
+
+runRetro<-function(i,path,oldsubdir,newsubdir="retros",seed=1224){
+  
+  retro(dir=path,oldsubdir=oldsubdir,newsubdir=newsubdir,years=-i)
+  
+  m_ply(c("retro0",paste("retro",i,sep="-")), function(x) {
+          ss=FLCandy:::tryIt(SS_output(file.path(path,"retro",x),verbose=FALSE,hidewarn=FALSE,printstat=FALSE))
+          save(ss,file=file.path(path,"retro",x,"ss.RData"))})
+  
+  mvls=mdply(c("retro0",paste("retro",i,sep="-")), function(x) {
+           load(file.path(path,"retro",x,"ss.RData"))
+           set.seed(seed) 
+           tryIt(model.frame(mvlnFLQ(ssmvln(ss$CoVar,ss$derived_quants,mc=500)),drop=T))})
+  
+  m_ply(c("retro0",paste("retro",i,sep="-")), function(x) {
+        load(file.path(path,"retro",x,"ss.RData"))
+        fls=FLCandy:::tryIt(buildFLSss330(ss))
+        save(fls,file=file.path(path,"retro",x,"fls.RData"))})
+      
+  FLQuants(dlply(mvls,.(X1), with, as.FLQuant(data.frame(year=year,iter=iter,data=stock))))}
+
+path="P:\rfmo\ices\wkbseabass\ss3\20250129\north"
+
+runRetro(i,path,oldsubdir="base",seed=1224){
+    
+ggplot(window(flqs,start=2010),aes(x=date,y=data,      
+                       colour=qname, fill=qname))+
+  geom_flquantiles(aes(colour=qname, fill=qname), probs=c(.25,.5,.75),alpha=0.5)+
+  geom_flquantiles(aes(colour=qname, fill=qname), probs=c(.1,.5,.9),  alpha=0.2)+
+  geom_hline(aes(yintercept=0.4),col="red")+
+  labs(colour="Retro")+
+  xlab("Year")+ylab(expression(SSB/B[0]))+
+  theme(legend.position="bottom")
+
+```
+

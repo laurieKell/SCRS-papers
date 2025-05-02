@@ -1,0 +1,662 @@
+---
+title: "WKBSEABASS North"
+subtitle: "Advice"
+author: 
+  L.T. Kell
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{Estimating $F_{MNY}$ for Atlantic Mackerel}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+
+```{r, knitr, eval=TRUE, echo=FALSE, warning=FALSE, cache=FALSE}
+library(knitr)
+
+opts_chunk$set(comment   =NA, 
+               warning   =FALSE, 
+               message   =FALSE, 
+               error     =FALSE, 
+               echo      =FALSE, 
+               cache     =TRUE, 
+               cache.path="../cache/North/",
+               fig.path  ="../figs/North-",
+               fig.width =8,
+               fig.height=6,
+               dev       ="png")
+
+iFig=0
+iTab=0
+```
+
+```{r, install, eval=FALSE}
+# Install CRAN packages
+pkgs_cran <- c("ggplot2", "ggpubr", "GGally", "grid", "plyr", "dplyr", 
+               "reshape", "data.table", "stringr", "foreach", "doParallel")
+
+install.packages(pkgs_cran)
+
+# Install FLR packages from FLR repository
+install.packages(c("FLCore", "FLBRP", "ggplotFL","ss3om"), 
+                repos = "https://flr.r-universe.dev")
+
+# Install ICES TAF package
+install.packages("TAF", repos = "https://ices-tools-prod.r-universe.dev")
+
+library(remotes)
+
+# Install FLCandy from GitHub
+remotes::install_github("laurieKell/FLCandy")
+
+# Install kobe package
+remotes::install_github("fishfollower/kobe")
+
+# Install Stock Synthesis packages
+remotes::install_github("r4ss/r4ss")
+remotes::install_github("PIFSCstockassessments/ss3om")
+remotes::install_github("jabbamodel/ss3diags", force = TRUE)
+```
+
+```{r, pkgs}
+require(ggplot2)
+require(ggpubr)
+library(GGally)
+library(ggpubr)
+library(grid) 
+
+library(plyr)
+library(dplyr)
+library(reshape)
+
+library(TAF)
+library(data.table)
+
+library(stringr)
+library(gam)
+
+library(FLCore)
+library(FLBRP)
+library(ggplotFL)
+library(FLCandy)
+library(kobe)
+
+library(r4ss)
+library(ss3om)
+library(ss3diags)     
+
+library(foreach)
+library(doParallel)
+
+theme_set(theme_minimal(base_size=12))
+```
+
+
+```{r, path}
+path="P:/rfmo/ices/wkbseabass/ss3/20250307/north"
+scen=expand.grid(M=seq(0.4,1.2,0.1),
+                 h=c(0.8,  0.9, 0.999))
+ctrl="BassIVVII.ctl"
+
+setwd(path)
+```
+
+
+## Base
+
+```{r, base, eval=!FALSE}
+base=SS_output(file.path(path,"base"),verbose=FALSE,hidewarn=FALSE,printstat=FALSE) 
+save(base, file=file.path(path,"base.RData"))
+```
+
+```{r, mvln}
+load(file.path(path,"base.RData"))
+
+ss  =FLCandy:::smrySS(base)
+fls =FLCandy:::tryIt(buildFLSss330(base))
+
+source("C:/active/FLCandy/R/ss-MVLN.R")
+mvln=FLCandy:::mvlnFLQ(ssmvln(base[["CoVar"]],base[["derived_quants"]],mc= 1241))
+```
+
+```{r, ssb}
+ggplot(as.data.frame(ssb(fls)))+
+  geom_line(aes(year,data),          col="blue",linewidth=2)+
+  geom_line(aes(year,ssb),data=ss$ts,col="red")
+```
+
+**Figure `r iFig=iFig+1; iFig`** 
+
+```{r, stock}
+ss$ts$stock=ss$ts$ssb/ss$refpts$ssbmsy[1]
+ggplot()+
+  geom_line(aes(year,stock),data=ss$kb,col="blue",linewidth=2)+
+  geom_line(aes(year,stock),data=ss$ts,col="red")
+```
+
+**Figure `r iFig=iFig+1; iFig`** 
+
+```{r, kobe}
+kobe:::trendPhaseMar2(window(mvln[["stock"]],end=2022),ylim=3, ylab=expression(SSB:B[MSY]))
+```
+
+**Figure `r iFig=iFig+1; iFig`** 
+
+```{r, harvest}
+##ssb0/ssbmsy
+plot(mvln$harvest)+
+  geom_line(aes(year,harvest),linewidth=2,col="blue",data=ss$kb)
+
+kobe:::trendPhaseMar2(window(mvln[["harvest"]],end=2022),ylim=3, ylab=expression(SSB:B[MSY]))
+```
+
+**Figure `r iFig=iFig+1; iFig`** 
+
+```{r, kobes-mvln,fig.height=8, fig.width=8}
+source("C:/active/FLCandy/R/ss-MVLN.R")
+
+mvls=mdply(scen, function(M,h){
+         load(file.path(path,M,h,"ss.RData"))
+         set.seed(1224) 
+         tryIt(model.frame(mvlnFLQ(ssmvln(ss$CoVar,ss$derived_quants,mc=500)),drop=T))})
+```
+
+
+```{r, ll}
+source("C:/active/FLCandy/R/ss-smry.R")
+
+scens=unnest(mlply(scen, function(M,h) {load(file.path(path,M,h,"smry.RData"));smry}))
+scens=llply(scens, function(x) cbind(scen[x$Scenario,],x)) 
+
+ggplot(transform(scens$ll,Steepness=ac(h)))+
+  geom_line(aes(M,ll,col=Steepness))+
+  xlab("M Multiplier")+
+  ylab("Likelihood")
+  #coord_cartesian(ylim=c(2400,2450))
+```
+
+**Figure `r iFig=iFig+1; iFig`** 
+
+```{r, kobe2}
+kobePhase(subset(scens$kb,year==max(year)),ylim=c(0,2),xlim=c(0,5))+
+  geom_point(aes(stock,harvest),shape=21,fill="grey",col="black",size=1.5,stroke=0.01)+
+  facet_grid(M~h)+
+  labs(title="Current Status")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Kobe
+
+```{r, kobe3}
+kobePhase(subset(mvls,year==max(year)),ylim=c(0,2),xlim=c(0,5))+
+  geom_point(aes(exp(stock),exp(harvest)),shape=21,fill="grey",col="black",size=1.5,stroke=0.01)+
+  facet_grid(M~h)+
+  labs(title="Current Status")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Kobe
+
+```{r, kobe4}
+kobe:::kobePhaseMar2(transform(subset(mvls,year==max(year)),run=paste(M,h))[,c("stock","harvest","run")])
+  # geom_point(aes(stock,harvest),shape=21,fill=run,col="black",size=0.75,stroke=0.3)+
+  # labs(title="Current Status",
+  # colour="M")+
+  # scale_x_continuous(limits=c(0,2))+
+  # scale_y_continuous(limits=c(0,2))
+```
+
+**Figure `r iFig=iFig+1; iFig`** kobe 
+
+
+```{r, pf}
+productionFn<-function(b,r,k,p){
+  t1=b*r/p
+  t3=(b/k)^p
+  t1*(1-t3)}
+
+refpts<-function(r,k,p){
+  data.frame(bmsy=k*(1/(p+1))^(1/p),
+             msy =(r*k/((p+1)^((p+1)/p))),
+             fmsy=r/((p+1)))}
+
+scens=unnest(mlply(scen, function(M,h) {load(file.path(path,M,h,"smry.RData"));smry}))
+scens=llply(scens, function(x) cbind(scen[x$Scenario,],x))
+
+curve=ddply(scens$pfunc, .(M,h),  with,  
+            data.frame(biomass=seq(0,k,length.out=101), 
+                       catch  =productionFn(seq(0.001,k,length.out=101),r,k,p)))
+
+rfs=subset(scens$refpts,quant=="hat")
+rfs=cbind(rfs,with(scens$pfunc,refpts(r=r,k=k,p=p)[,c("bmsy","fmsy")]))
+
+#                                 harvest=harvest/median(harvest))
+ggplot(curve)+
+  facet_grid(h~M,scale="free")+
+  geom_line(aes(biomass,catch))+
+  geom_rect(aes(xmin=0,    xmax=bmsy,ymin=msy,ymax=Inf),data=rfs,fill="red",   alpha=0.2)+
+  geom_rect(aes(xmin=bmsy, xmax=Inf, ymin=0,  ymax=msy),data=rfs,fill="green", alpha=0.2)+
+  geom_rect(aes(xmin=0,    xmax=bmsy,ymin=0,  ymax=msy),data=rfs,fill="yellow",alpha=0.2)+
+  geom_rect(aes(xmin=bmsy, xmax=Inf, ymin=msy,ymax=Inf),data=rfs,fill="yellow",alpha=0.2)+
+  geom_path( aes(biomass,catch,  col=-year),data=scens$sp)+
+  geom_point(aes(biomass,catch),col="blue", data=subset(scens$sp,year==max(year)))+
+  geom_abline(data=rfs, aes(slope=fmsy, intercept=0), 
+              linetype="dashed", color="darkgrey")+
+  labs(colour="M",
+       title="Production Functions with Catch v Biomass",
+       x = "Biomass",
+       y = "Catch")+
+  theme(legend.position="none")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Production Functions
+
+
+```{r, eql, eval=!FALSE}
+source("C:/active/FLCandy/R/generic.R")
+source("C:/active/FLCandy/R/ss-eqPlot.R")
+
+dat=mlply(with(scen,file.path(path,M,h)),
+               function(x)
+                     tryIt(SS_output(x,verbose=FALSE,hidewarn=FALSE,printstat=FALSE)))
+eql=llply(dat, function(x) tryIt(curveSS(x,maxY=2.5))) 
+
+eql=Map(function(x) cbind(x, scen[x$Scenario,]), FLCandy:::unnest(eql[!unlist(llply(eql,is.null))]))
+save(eql,file=file.path(path,"eql.RData"))
+```
+
+```{r, pf2, fig.width=12, fig.height=8}
+load(file.path(path,"eql.RData"))
+
+ggplot(eql$refpts)+
+  facet_grid(h~M, labeller = labeller(
+     M=function(x) paste("M ~", x),
+     h=function(x) paste("h =", x)),
+     scale="free",space="free")+
+  # Base layers
+  geom_polygon(data=eql$triangle,aes(x, y),             fill="orange",  alpha=0.5)+
+  geom_rect(aes(xmin=0,    xmax=bmsy,ymin=msy,ymax=Inf),fill="#D55E00", alpha=0.3)+
+  geom_rect(aes(xmin=bmsy, xmax=Inf, ymin=0,  ymax=msy),fill="#009E73", alpha=0.3)+
+  geom_rect(aes(xmin=0,    xmax=bmsy,ymin=0,  ymax=msy),fill="#F0E442", alpha=0.3)+
+  geom_rect(aes(xmin=bmsy, xmax=Inf, ymin=msy,ymax=Inf),fill="#F0E442", alpha=0.3)+
+  coord_cartesian(ylim =c(0,7.5e3), expand = FALSE)+
+  # Lines
+  geom_line(data = eql$curve, aes(ssb, yield), color="blue")+
+  geom_abline(data=eql$refpts, aes(slope=msy/bmsy, intercept=0), col="grey10", linetype=3) +
+  # Time series
+  geom_point(data = subset(eql$tseries, year %in% c(min(year), max(year))),
+             aes(ssb, yield, color = factor(year)))+
+  geom_point(data = subset(eql$tseries, !(year %in% c(min(year), max(year)))),
+             aes(ssb, yield), color="grey10",fill="grey90", shape=21, size=1, stroke=0.2)+
+  geom_path(data=eql$tseries, aes(ssb, yield),
+            arrow = arrow(length = unit(0.3, "cm"), type="closed", angle=30,ends = "last"),
+  linewidth = 0.25,color="grey10")+
+  # Reference points
+  geom_point(aes(x=bmsy, y=msy), shape=21, fill="white", linewidth=3) +
+  geom_text( aes(x=bmsy, y=msy,  label="MSY"), hjust=-0.2, vjust=-0.2) +
+  # Scales
+  #scale_x_continuous(labels=scales::comma,breaks=seq(0, 100000,by=20000),
+  #                   expand=expansion(mult=c(0, 0.05))) +
+  scale_y_continuous(labels=scales::comma) +
+  scale_color_manual(values= c("blue", "red"),
+                    labels= c("Start", "End"),
+                    name  = "Time Period") +
+  # Labels
+  labs(title="Yield vs SSB",
+       x    =expression("Total Biomass (t)"),
+       y    =expression("Production (t)"))+
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.minor = element_blank(),
+      strip.background = element_rect(fill = "grey95"),
+      strip.text = element_text(face = "bold"),
+      axis.title = element_text(face = "bold"),
+      plot.title = element_text(hjust = 0.5, face = "bold"),
+      legend.position = "bottom",
+      axis.text.x=element_text(angle=45,hjust=1, size =10,margin=margin(t=10)),
+      panel.grid.major.x = element_line(color = "grey90"), 
+      axis.line = element_line(color = "black"))
+  #geom_abline(aes(slope=msy/ssbmsy,intercept=0),data=ss$refpts[1,])
+```
+
+**Figure `r iFig=iFig+1; iFig`** Production Functions 2
+
+```{r, kobe5}
+kb=mlply(with(scen,file.path(path,M,h)),function(x)
+  suppressMessages(FLCandy:::smrySS(SS_output(x,verbose=FALSE,hidewarn=FALSE,printstat=FALSE))))
+kb=Map(function(x) cbind(x, scen[x$Scenario,]), unnest(kb))
+
+kobePhase(kb$kb,xlim=c(0,5),ylim=c(0,1.25))+
+    facet_grid(h~M, labeller = labeller(
+          M=function(x) paste("M =", x),
+          s=function(x) paste("s =", x)))+
+    geom_path(aes(stock, harvest), color="blue") +
+    #geom_path(data=dat$kb, aes(stock, harvest),
+    #          arrow = arrow(length = unit(0.3, "cm"), type="closed", angle=30, ends = "last"),
+    #          size = 0.25, color="grey10")+
+    geom_point(data = subset(kb$kb, !(year %in% c(min(year), max(year)))),
+          aes(stock, harvest), color="grey10", fill="grey90",
+          shape=21, size=1, stroke=0.2)+
+    geom_point(data = subset(kb$kb, year %in% c(min(year), max(year))),
+          aes(stock, harvest, color = factor(year)))+
+    scale_color_manual(values = c("blue", "red"),
+      labels= c("Start", "End"), name = "Time Period")
+
+```
+
+### Data
+
+#### CPUE
+
+```{r, CPUE}
+scale<-function(x,y,...){
+  args=list(...)
+  
+  if (length(args)==0) group=rep(1,length(x)) else group=args[[1]]  
+  
+  gm=gam(y~lo(x)+group,data=data.frame(x=x,y=y,group=group))
+  
+  res=data.frame(hat =predict(gm),
+                 y     =gm$y,
+                 x     =x,
+                 group =group,
+                 scl   =c(0,coefficients(gm)[-(1:2)])[as.numeric(as.factor(group))]
+  )
+  res$y  =res$y  -res$scl
+  res$hat=res$hat-res$scl
+  
+  if (length(args)==1) names(res)[4]=names(args)[1]  
+  
+  names(res)[1:4]=c("hat","data","year","name")
+  res[,c(4,3,2,1)]}
+
+plotIndexFn<-function(object,...){
+  
+  dat=FLQuants(llply(object,diags:::stdz)) 
+  dat=subset(as.data.frame(dat),!is.na(data))
+  rng=range(dat$year)
+  dat=with(dat,scale(year,data,name=qname))
+  
+  ggplot(dat)+
+    geom_line( aes(year,hat),data=dat[,c("year","hat")],col="grey60")+
+    geom_line( aes(year,hat))+
+    geom_line( aes(year,data))+
+    geom_point(aes(year,data),shape=21,fill="grey")+
+    facet_wrap(~name)
+}
+
+stdz<-function(x,na.rm=TRUE,mean=0) 
+  if (mean==0) (x-mean(x,na.rm=na.rm))/sd(x,na.rm=na.rm) else         
+               (x/mean(x,na.rm=na.rm))/sd(x,na.rm=na.rm)
+
+u=cpueSS(base)
+u=subset(ldply(u, as.data.frame, drop=T),!is.na(data))
+u=ddply(u,.(.id), with, data.frame(year=year,data=data,obsStd=(data-mean(data))/sd(data)))
+u=with(subset(u,!is.na(obsStd)),scale(x=year,y=obsStd,name=.id))
+ggplot(u)+
+  geom_line( aes(year,hat),col="grey25")+
+  geom_line( aes(year,data))+
+  geom_point(aes(year,data))+
+  facet_grid(name~.,scale="free",space="free_x")+
+  theme_bw(20)+theme(legend.position="bottom")+
+  xlab("Year")+ylab("CPUE") 
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Time series of CPUE indices, the continuous black line is a lowess smother showing the average trend by area; i.e. fitted to year with series as a factor. Clusters as chosen at the data prep meeting.
+
+
+
+```{r residuals, fig.height=10,fig.width=8}
+p=ggplot(u)+
+  geom_hline(aes(yintercept=0))+
+  geom_point(aes(year,data-hat),position=position_dodge(width = 1),colour="blue")+
+  geom_point(aes(year,data-hat),position=position_dodge(width = 1),colour="red",data=subset(u,data-hat<0))+
+  geom_line(aes(year,data-hat),alpha=0.5)+
+  geom_linerange(aes(year,ymin=0,ymax=data-hat),position=position_dodge(width = 1),col="blue")+
+  geom_linerange(aes(year,ymin=0,ymax=data-hat),position=position_dodge(width = 1),colour="red",data=subset(u,data-hat<0))+
+  theme(legend.position="bottom")+
+  facet_grid(name~.,scale="free",space="free_x")+
+  theme_bw(20)+
+  theme(legend.position="none")+
+  xlab("Year")+ylab("Residuals")
+```
+
+
+```{r, runtest}
+library(qicharts2)  
+
+u=cpueSS(base) 
+u=subset(ldply(u, as.data.frame, drop=T),!is.na(data))
+u=ddply(u,.(.id), with, data.frame(year=year,data=data,obsStd=(data-mean(data))/sd(data)))
+u=subset(u,!is.na(obsStd))
+u=with(u,scale(x=year,y=obsStd,name=.id))
+u=transform(u,residual=data-hat)
+runs=ddply(u, .(name), with, qic(year,residual,chart="i")$data)
+runs=ddply(runs,.(name),with, 
+               data.frame(crossings=all(n.crossings>n.crossings.min),
+                          runs     =all(longest.run<longest.run.max)))
+runs=transform(runs,Pass=runs&crossings)
+
+save(u,file=file.path(path,"u.RData")) 
+
+ggplot(u)+
+  geom_hline(aes(yintercept=0))+
+  geom_line( aes(year,residual),position=position_dodge(width=1),col="grey60")+
+  geom_point(aes(year,residual),position=position_dodge(width=1),col="red",lwd=0.5,
+             data=subset(u,residual<0))+
+  geom_linerange(aes(year,ymin=0,ymax=residual),position=position_dodge(width=1),col="red",lwd=0.5,
+             data=subset(u,residual<0))+
+  geom_point(aes(year,residual),position=position_dodge(width=1),col="black",lwd=0.5,
+             data=subset(u,residual>0))+
+  geom_linerange(aes(year,ymin=0,ymax=residual),position=position_dodge(width=1),col="black",lwd=0.5,
+             data=subset(u,residual>0))+
+  theme(legend.position="bottom")+
+  facet_grid(name~.,scale="free",space="free_x")+
+  theme_bw(20)+
+  theme(legend.position="bottom",strip.text.y=element_text(angle=0),
+                                 strip.text.x=element_text(angle=0),
+                                 axis.text.x=element_text(angle=45, hjust=1))+
+  xlab("Year")+ylab("")+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=runs)+
+     scale_fill_manual(values=c("red","green"))+
+     scale_x_continuous(breaks=seq(1950,2010,10))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Residual runs tests.
+
+
+```{r cpue-correlations-1, fig.height=8,fig.width=8}
+load(file.path(path,"u.RData"))
+
+gg1=ggpairs(cast(u,year~name,value="data")[,c(2:3,5:6)], 
+  upper=list(continuous=wrap("cor",size=4, hjust=0.5)),
+  lower=list(continuous = wrap(mydas:::my_smooth)),
+  diag=list(continuous="bar"),
+    title = "")+theme_bw(20)+
+  theme(legend.position ="none", 
+       panel.grid.major =element_blank(), 
+       axis.ticks       =element_blank(), 
+       axis.text.x      =element_blank(), 
+       axis.text.y      =element_blank(),
+       panel.border     =element_rect(linetype = 1, colour="black", fill=NA)) 
+
+gg1
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Pairwise scatter plots to examine correlations between Indices.
+
+
+
+```{r cpue-clusters, fig.height=8,fig.width=8}
+library(corrplot)
+
+cr=cor(subset(model.frame(mcf(cpueSS(base)) ,drop=T),!is.na(data))[,-1],use="pairwise.complete.obs")  
+cr[is.na(cr)]=0
+corrplot(cr,diag=F,order="hclust",addrect=4)  +          
+             theme(legend.position="bottom")  
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Plot of the correlation matrix for the CPUE indices, blue indicate a positive correlation  and red negative. The order of the indices and the rectangular boxes are chosen based on a hierarchical cluster analysis using a set of dissimilarities for the indices.
+
+```{r ccf, fig.height=8,fig.width=8}
+cc=FLife:::my_ccf(FLQuants(dlply(u,.(name),with,as.FLQuant(data.frame(year=year,data=data)))))
+
+ggplot(cc)+
+  geom_vline(aes(xintercept=0),linetype=2,col="blue")+
+  geom_linerange(aes(x=lag,ymin=0,ymax=data))+
+  facet_grid(a~b)+
+  theme_bw(20)+
+  ylab("ACF")+xlab("Lag")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Cross correlations between indices, to identify potential lags due to year-class effects.
+
+
+#### Lengths
+
+
+```{r, len}
+lfd=suppressMessages(lenSS(base))
+
+suppressMessages(plotLengths(lfd[[3]]))+
+  facet_grid(.~year,scale="free")+
+  scale_y_continuous(limits = c(NA,NA))+
+  geom_vline(aes(xintercept=data),data=as.data.frame(lmean(lfd[[3]])),col="red",stroke=1.2)
+```
+
+#### Age
+
+```{r, age}
+alk=FLPar(base$ALK)
+```
+
+
+## Retros
+
+```{r}
+retro(dir=path,"files","retro","..",years=-10)
+```
+
+```{r}
+path="P:/rfmo/ices/wkbseabass/ss3/20250307/north/retro"
+scen=expand.grid(M=seq(0.4,1.2,0.1),
+                 h=c(0.8,  0.9, 0.999))
+ctrl="BassIVVII.ctl"
+
+cpFiles<-function(sourceDir, destDir) {
+    # Remove trailing slashes and asterisks
+    sourceDir <- gsub("[/*]+$", "", sourceDir)
+    
+    if (.Platform$OS.type == "windows") {
+      cmd=sprintf('xcopy "%s" "%s" /S /I /Y', 
+                    sourceDir,
+                    destDir)} else {
+      cmd=sprintf("find '%s' -type f -exec cp {} '%s' \\;",
+                    sourceDir,
+                    destDir)}
+    
+    system(cmd)}
+
+ncore=detectCores()-4  
+registerDoParallel(ncore)
+
+# Run
+mScen=foreach(i=seq(dim(scen)[1]), 
+                .packages=c("TAF","r4ss","ss3om","plyr","dplyr","FLCandy")) %dopar% {
+                  
+    h=scen[i,"h"]                   
+    M=scen[i,"M"] 
+    
+    # Create dirs
+    if (!dir.exists(file.path(path,M)))   mkdir(file.path(path,M))
+    if (!dir.exists(file.path(path,M,h))) mkdir(file.path(path,M,h))
+  
+    # Copy files, excluding directories
+    cpFiles(file.path(path,"files/*"), file.path(path,M,h))
+    
+    # Modify control file
+    parlines=SS_parlines(file.path(path,M,h,ctrl))
+  
+    sln=parlines[grepl("BH_steep",c(parlines[,"Label"])),"Linenum"]
+    SS_changepars(dir=file.path(path,M,h), ctlfile=ctrl, newctlfile=ctrl,linenums=seq(sln, sln),newvals=h)
+  
+    ##mln=parlines[grepl("NatM",    c(parlines[,"Label"])),"Linenum"]
+    ##SS_changepars(dir=file.path(path,M,h), ctlfile=ctrl, newctlfile=ctrl,linenums=seq(mln, mln),newvals=M)
+  
+    # Modify M vector
+    cFl  =scan(file.path(path,M,h,ctrl),what=as.character(),sep="\n")
+    mRow=grep("# natm",tolower(cFl))
+    for (iRow in mRow){
+       mVec =as.numeric(unlist(strsplit(cFl[iRow], "\\s+")))
+       mVec =mVec[!is.na(mVec)]*M
+       cFl[iRow]=paste(mVec,collapse=" ")}
+    cat(cFl,file=file.path(path,M,h,ctrl),sep="\n")
+  
+    # Run SS3
+    r4ss::run(file.path(path,M,h), exe="ss3", show_in_console=FALSE, skipfinished=FALSE)
+  
+    # get SS files
+    ss=FLCandy:::tryIt(SS_output(file.path(path,M,h),verbose=FALSE,hidewarn=FALSE,printstat=FALSE))
+    save(ss,file=file.path(path,M,h,"ss.RData"))
+  
+    # Create and save FLR objects
+    fls=FLCandy:::tryIt(buildFLSss330(ss))
+    save(fls,file=file.path(path,M,h,"fls.RData"))
+  
+    # Save summary data.frames  
+    smry=FLCandy:::tryIt(FLCandy:::smrySS(file.path(path,M,h)))
+    save(smry,file=file.path(path,M,h,"smry.RData"))
+    
+    TRUE}
+
+stopImplicitCluster()
+```
+
+```{r}
+lls=mdply(scen, function(M,h) {
+  load(file.path(path,M,h,"ss.RData"))
+  data.frame(component=dimnames(ss$likelihoods_used)[[1]],
+             ll       =ss$likelihoods_used[,-2])})
+
+ggplot(transform(subset(lls,!(component%in%c("InitEQ_Regime","Crash_Pen"))),
+                 Steepness=ac(h),
+                 component=gsub("_"," ",unique(component))))+
+  geom_line(aes(M,ll,col=Steepness),linewidth=1.5)+
+  facet_wrap(.~component,ncol=2,scale="free")+
+  xlab("M Multiplier")+
+  ylab("Likelihood")+
+  theme_bw()+theme(legend.position="bottom",
+                   strip.text.y.left=element_text(angle=0))
+```
+
+```{r}
+load("../data/inputs/Updated_stks_n82_R0_updated202501.RData")
+load("../data/spp.RData")
+load("../data/info.RData")
+icesdata=ICESStocks
+rm(ICESStocks)
+
+bass=icesdata[4:5]
+```
+
+
+```{r, ts, fig.height=8}
+plot(bass[["bss.27.4bc7ad-h"]])+  
+   geom_flpar(data=FLPars('F'  =benchmark(bass[["bss.27.4bc7ad-h"]])[c("fmsy",    "flim","fpa")]),x=1980)+
+   geom_flpar(data=FLPars('SSB'=benchmark(bass[["bss.27.4bc7ad-h"]])[c("btrigger","blim","bpa")]),x=1980)+
+   xlab("Year")+ylab("")+
+   theme(legend.position = "bottom", 
+         plot.margin = unit(c(0, 0, 1, 0), "lines"),
+         panel.background = element_rect(fill   ="NA", colour ="NA"), 
+         panel.border     = element_rect(fill   ="NA", colour ="grey50"), 
+         panel.grid.major = element_line(colour ="NA"), 
+         panel.grid.minor = element_line(colour ="NA"))+
+    facet_grid(factor(qname,levels=c("SSB","F","Catch","Rec"))~.,scale="free")
+```
+
+**Figure MSE.`r iFig=iFig+1;iFig`** Historical stock trends with reference points.
