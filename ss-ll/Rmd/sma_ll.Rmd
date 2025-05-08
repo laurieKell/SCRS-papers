@@ -141,8 +141,9 @@ theme_set(theme_minimal(base_size=12))
 
 
 
-```{r, path, eval=TRUE}
-setwd("/home/laurie/Desktop/SCRS-papers/ss-ll/Rmd")
+```{r, path, eval=!TRUE}
+#setwd("/home/laurie/Desktop/SCRS-papers/ss-ll/Rmd")
+setwd("c:/active/SCRS-papers/ss-ll/Rmd")
 ```
 
 
@@ -151,7 +152,8 @@ scen=expand.grid(M   =c(seq(0.5,1,length.out=5),seq(1,1.5,length.out=5)[-1]),
                  beta=c(0.5,1, 1.5))
 ctrl="CONTROL.SS"
 
-path="../data/inputs/00_Model_run_files-20250423T155132Z-001"
+#path="../data/inputs/00_Model_run_files-20250423T155132Z-001"
+path="../data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files"
 ```
 
 
@@ -185,19 +187,19 @@ mScen=foreach(i=seq(dim(scen)[1]),
     # Create dirs
     if (!dir.exists(file.path(path,M)))      mkdir(file.path(path,M))
     if (!dir.exists(file.path(path,M,beta))) mkdir(file.path(path,M,beta))
-  
+
     # Copy files, excluding directories
     cpFiles(file.path(path,"files/*"), file.path(path,M,beta))
-    
+
     # Modify control file
     parlines=SS_parlines(file.path(path,M,beta,ctrl))
-  
+
     sln=parlines[grepl("SR_surv_Beta",c(parlines[,"Label"])),"Linenum"]
     SS_changepars(dir=file.path(path,M,beta), ctlfile=ctrl, newctlfile=ctrl,linenums=seq(sln, sln),newvals=beta)
-  
+
     ##mln=parlines[grepl("NatM",    c(parlines[,"Label"])),"Linenum"]
     ##SS_changepars(dir=file.path(path,M,beta), ctlfile=ctrl, newctlfile=ctrl,linenums=seq(mln, mln),newvals=M)
-  
+
     # Modify M vector
     cFl  =scan(file.path(path,M,beta,ctrl),what=as.character(),sep="\n")
     mRow=grep("# natm",tolower(cFl))
@@ -206,10 +208,10 @@ mScen=foreach(i=seq(dim(scen)[1]),
        mVec =mVec[!is.na(mVec)]*M
        cFl[iRow]=paste(mVec,collapse=" ")}
     cat(cFl,file=file.path(path,M,beta,ctrl),sep="\n")
-  
+
     # Run SS3
-    r4ss::run(file.path(path,M,beta), exe="ss", show_in_console=FALSE, skipfinished=FALSE)
-    
+    r4ss::run(file.path(path,M,beta), exe="ss3.exe", show_in_console=FALSE, skipfinished=FALSE)
+
     # get SS files
     ss=FLCandy:::tryIt(SS_output(file.path(path,M,beta),verbose=FALSE,hidewarn=FALSE,printstat=FALSE))
     save(ss,file=file.path(path,M,beta,"ss.RData"))

@@ -14,7 +14,7 @@ license: Creative Commons Attribution-ShareAlike 4.0 International Public Licens
 knit: (function(inputFile, encoding) {
   rmarkdown::render(inputFile, encoding = encoding, output_dir = "../outputs/word") })
 ---
-  
+
 ```{r, knitr, eval=TRUE, echo=FALSE, warning=FALSE, cache=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 # getwd()
@@ -36,7 +36,6 @@ iFig=0
 iTab=0
 ```
 
-
 ```{r}
 pagebreak <- function() {
   if(knitr::is_latex_output())
@@ -46,9 +45,15 @@ pagebreak <- function() {
 }
 ```
 
-
 ```{r}
 source("../R/ssMVLNFunction.R")
+```
+
+```{r}
+library(remotes)
+
+remotes::install_github("jabbamodel/ss3diags")
+
 ```
 
 ```{r, warning=FALSE,  message=FALSE, error=FALSE}
@@ -76,12 +81,15 @@ library(kableExtra)
 setwd("~/Desktop/SCRS-papers/mvln/Rmd")
 ```
 
+```{r}
+
+```
+
 ```{r, base, echo=FALSE}
 base=SS_output("../data/inputs/run_06",verbose=FALSE,hidewarn=FALSE,printstat=FALSE)
 
 mvln =mvlnFLQ(ssmvln(base[["CoVar"]],base[["derived_quants"]],mc= 1241))
 ```
-
 
 ```{r, bsh300-mvln}
 dir300="../data/inputs/forecasts/300"
@@ -98,15 +106,14 @@ mvln =mvlnFLQ(ssmvln(bsh300[["CoVar"]],bsh300[["derived_quants"]],mc= 1241))
 kobe:::trendPhaseMar2(window(mvln[["stock"]],end=2022),ylim=3, ylab=expression(SSB:B[MSY]))
 ```
 
-**Figure `r iFig=iFig+1; iFig`.** Historical trends in $SSB/B_{MSY}$ with marginal plot of current status, ribbons show inter-quartiles and $90_{th}$ percentile, relative to median. 
-
+**Figure `r iFig=iFig+1; iFig`.** Historical trends in $SSB/B_{MSY}$ with marginal plot of current status, ribbons show inter-quartiles and $90_{th}$ percentile, relative to median.
 
 ```{r, trend-harvest, fig.width=8, fig.height=4, echo=FALSE}
 kobe:::trendPhaseMar2(window(mvln[["harvest"]],end=2022),pts=mvln[["harvest"]][,"2023"],ylim=2,
                ylab=expression(F:F[MSY]))   
 ```
 
-**Figure `r iFig=iFig+1; iFig`.** Historical trends in $F/F_{MSY}$ with marginal plot of current status, ribbons show inter-quartiles and $90_{th}$ percentile, relative to median. 
+**Figure `r iFig=iFig+1; iFig`.** Historical trends in $F/F_{MSY}$ with marginal plot of current status, ribbons show inter-quartiles and $90_{th}$ percentile, relative to median.
 
 ## Current Status
 
@@ -121,7 +128,7 @@ kobe:::kobePhaseMar2(kb,
 
 **Figure `r iFig=iFig+1; iFig`.** Kobe phase plot for $SSB/B_{MSY}$ in 2021 and $F/F_{MSY}$ in 2020
 
-```{r, fig.height=8, fig.width=8} 
+```{r, fig.height=8, fig.width=8}
 kb=rbind(cbind(run="mvln",model.frame(FLQuants(stock=mvln[["stock"]][,"2022"],
                                                harvest=mvln[["harvest"]][,"2022"]),drop=T)))
 
@@ -130,7 +137,6 @@ kobe:::kobePhaseMar2(kb, quadcol=c("red","green","yellow","orange"),
 ```
 
 **Figure `r iFig=iFig+1; iFig`.** Kobe phase plot for $SSB/B_{MSY}$ in 2022 and $F/F_{MSY}$ in 2022
-
 
 ```{r, kobes-mvln,fig.height=8, fig.width=8}
 dat=mdply(expand.grid(F=2020:2023,SSB=2020:2023), function(F,SSB) 
@@ -143,10 +149,9 @@ kobe::kobePhase(dat)+
   facet_grid(F~SSB)
 ```
 
-**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for historical and $F/F_{MSY}$ forecasts, with correlations. 
+**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for historical and $F/F_{MSY}$ forecasts, with correlations.
 
 ## Projections
-
 
 ```{r, trend-stock-hist, fig.width=8, fig.height=4,warning=FALSE, message=FALSE}
 kobe:::trendPhaseMar2(window(mvln[["stock"]],start=2000, end=2070),ylim=3, 
@@ -155,14 +160,12 @@ kobe:::trendPhaseMar2(window(mvln[["stock"]],start=2000, end=2070),ylim=3,
 
 **Figure `r iFig=iFig+1; iFig`.** Recent historical and future trends in $SSB/B_{MSY}$ and projection for $F_{MSY}$, marginal plot of status in 2032, ribbons show inter-quartiles and $90_{th}$ percentile, relative to median.
 
-
 ```{r, trend-harvest-hist, fig.width=8, fig.height=4, echo=FALSE}
 kobe:::trendPhaseMar2(window(mvln[["harvest"]],start=2000, end=2070),ylim=2, 
                ylab=expression(F:F[MSY]))
 ```
 
 **Figure `r iFig=iFig+1; iFig`.** Recent historical and future trends in $F/F_{MSY}$ and projection for $F_{MSY}$, marginal plot of status in 2032, ribbons show inter-quartiles and $90_{th}$ percentile, relative to median.
-
 
 ```{r, cvrs}
 dir="../data/inputs/forecasts"
@@ -225,7 +228,7 @@ ggplot(transform(dt2,TAC=paste(Run,"(kt)")))+
   scale_color_manual("TAC",values=rainbow(length(unique(f$Run))))
 ```
 
-**Figure `r iFig=iFig+1; iFig`.**  Median estimates of $B/SSB_{MSY}$ for projections. 
+**Figure `r iFig=iFig+1; iFig`.** Median estimates of $B/SSB_{MSY}$ for projections.
 
 ```{r, mvls-f, fig.width=8,fig.height=4}
 dt2=transform(ddply(dat, .(year,Run), with,    
@@ -242,7 +245,7 @@ ggplot(transform(dt2,TAC=paste(Run,"(kt)")))+
   scale_color_manual("TAC",values=rainbow(length(unique(f$Run))))
 ```
 
-**Figure `r iFig=iFig+1; iFig`.**  Median estimates of $F/SSB_{MSY}$ for projections. 
+**Figure `r iFig=iFig+1; iFig`.** Median estimates of $F/SSB_{MSY}$ for projections.
 
 ```{r}
 library(ggplotFL)
@@ -250,10 +253,9 @@ plot(mvln,iter=c(5,17))+
   theme_bw()
 ```
 
-**Figure `r iFig=iFig+1; iFig`.**  Plot of $B/SSB_{MSY}$ & $F/F_{MSY}$ with sample Monte Carlo simulations.
+**Figure `r iFig=iFig+1; iFig`.** Plot of $B/SSB_{MSY}$ & $F/F_{MSY}$ with sample Monte Carlo simulations.
 
 `r pagebreak()`
-
 
 ```{r}
 mcmcKobe<-function(dat){ 
@@ -280,13 +282,11 @@ mcmc2=iter(mcmc2,seq(1, 10000,10)+2401)
 mvln=iter(mvln,seq(1000))
 ```
 
-
 ```{r, trend-mcmc-mvln, fig.width=8,fig.height=4}
 kobe:::trendPhaseMar3(window(FLQuants("1"=mcmc1[["stock"]],"3"=mvln[["stock"]]),end=2022),ylim=3)
 ```
 
 **Figure `r iFig=iFig+1; iFig`.** Comparison of MVLN and MCMC historical a trends in $SSB/B_{MSY}$, ribbons show inter-quartiles and $90_{th}$ percentile, relative to median.
-
 
 ```{r, kobe-mcmc-mvln, fig.width=8,fig.height=8}
 kb=rbind(cbind(run="mvln",model.frame(FLQuants(stock=mvln[["stock"]][,"2022"],
@@ -299,7 +299,6 @@ kobe:::kobePhaseMar2(kb,
 
 **Figure `r iFig=iFig+1; iFig`.** Comparison of MVLN and MCMC simulations for Kobe Phase Plot of of $B/SSB_{MSY}$ & $F/F_{MSY}$.
 
-
 ```{r, kobe-mcmc-2, fig.width=8,fig.height=8}
 dat=mdply(expand.grid(F=2020:2023,SSB=2020:2023), function(F,SSB) 
   model.frame(FLQuants(harvest=mcmc1[["harvest"]][,ac(F)],
@@ -311,8 +310,7 @@ kobe::kobePhase(dat)+
   facet_grid(F~SSB)
 ```
 
-**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, based on Run6, with correlations between years 
-
+**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, based on Run6, with correlations between years
 
 ```{r, kobe-mcmc-3, fig.width=8,fig.height=8}
 dat=mdply(expand.grid(F=2020:2023,SSB=2020:2023), function(F,SSB) 
@@ -325,8 +323,7 @@ kobe::kobePhase(dat)+
   facet_grid(F~SSB)
 ```
 
-**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, based on new forecast.ss, with correlations between years 
-
+**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, based on new forecast.ss, with correlations between years
 
 ```{r, kobe-mcmc-4, fig.width=8,fig.height=8}
 dat=mdply(data.frame(Year=2025:2030), function(Year) 
@@ -340,9 +337,7 @@ kobe::kobePhase(dat)+
   facet_wrap(~Year)
 ```
 
-**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, based on run6, with correlations between years 
-
-
+**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, based on run6, with correlations between years
 
 ```{r, kobe-mcmc-5, fig.width=8,fig.height=8}
 dat=mdply(data.frame(Year=2025:2030), function(Year) 
@@ -355,17 +350,11 @@ kobe::kobePhase(dat,xlim=c(0,2), ylim=c(0,4))+
   facet_wrap(~Year)
 ```
 
-**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, based on new forecast.ss, with correlations between years 
-
-
-
-
+**Figure `r iFig=iFig+1; iFig`.** Kobe phase plots for MCMC, based on new forecast.ss, with correlations between years
 
 \tiny
 
-
 **Table `r iTab=iTab+1; iTab`.** Covariances from SS
-
 
 ```{r, covar}
 cor =sscor(bsh300$CoVar)
@@ -384,7 +373,7 @@ dimnames(cor)=list(vars, vars)
 print(cor,digits=2)
 ```
 
-**Table `r iTab=iTab+1; iTab`.** Estimates of $SSB/B_{MSY}$ and  $F/F_{MSY}$, i.e. Bratio and F
+**Table `r iTab=iTab+1; iTab`.** Estimates of $SSB/B_{MSY}$ and $F/F_{MSY}$, i.e. Bratio and F
 
 ```{r}
 ht=sshat(bsh300$derived_quants)
@@ -397,20 +386,17 @@ dat=cast(dat,qname~year,value="data")
 print(dat,digits=2)
 ```
 
-
 **Table `r iTab=iTab+1; iTab`.** Lower percentile and median MVLN terminal estimates for $SSB/B_{MSY}$
 
 ```{r, summary-ssb-mvln}
 print(cast(as.data.frame(quantile(mvln[["stock"]][,ac(2020:2023)],probs=c(0.15,0.5))),iter~year,value="data"),digits=2)
 ```
 
-
 **Table `r iTab=iTab+1; iTab`.** Summary of MVLN terminal estimates of $F/F_{MSY}$
 
 ```{r, summary-f-mvln}
 print(cast(as.data.frame(quantile(mvln[["harvest"]][,ac(2020:2023)],probs=c(0.35,0.5))),iter~year,value="data"),digits=2)
 ```
-
 
 ```{r, k2sm}
 k2sm=transform(ldply(mvls, function(x) if("try-error"%in%is(x)) return(NULL) else as.data.frame(x)),Run=runs[an(X1)])
@@ -430,7 +416,6 @@ grn[is.na(grn)]=0
 grn[,-1]=paste(unlist(c(as.integer(grn[,-1]*100))),"%",sep="")
 grn[,ac(2023:2030)]
 ```
-
 
 **Table `r iTab=iTab+1; iTab`.** Probability of being over fished.
 
@@ -489,7 +474,6 @@ kab=knitr::kable(k2sm["overFished",,ac(2023:2032)], caption="Table 1: ", booktab
 kable_classic_2(kab, full_width=F, latex_options="hold_position")
 ```
 
-
 ```{r}
 run6  =SS_output("~/Desktop/SCRS-papers/mvln/data/inputs/run_06",
                  verbose=FALSE,hidewarn=FALSE,printstat=FALSE)[c("CoVar","derived_quants")]
@@ -501,8 +485,7 @@ cov300 =sscor(bsh300$CoVar)
 vars=c(paste("Bratio",2021:2023,sep="_"),paste("F",2021:2023,sep="_"))
 ```
 
-`r pagebreak()`
-\blandscape
+`r pagebreak()` \blandscape
 
 **Table `r iTab=iTab+1; iTab`.** SS3 covariances from Run 6
 
@@ -519,6 +502,7 @@ dimnames(cor)=list(vars, vars)
 
 print(cor,digits=2)
 ```
+
 **Table `r iTab=iTab+1; iTab`.** MCMC covariances using Run 6
 
 ```{r, covar-4}
@@ -527,8 +511,6 @@ dimnames(cor)=list(vars, vars)
 
 print(cor,digits=2)
 ```
-
-
 
 **Table `r iTab=iTab+1; iTab`.** SS3 covariances from new forecast file
 
@@ -555,11 +537,9 @@ dimnames(cor)=list(vars, vars)
 print(cor,digits=2)
 ```
 
-
 \elandscape
 
 \normalsize
-
 
 ```{r,echo=FALSE, eval=FALSE}
 sim<-function(covar,hat,year,biomass="Bratio",f="F",ref="annF_MSY",fyr=-1,
@@ -670,7 +650,6 @@ dat=read.csv("/home/laurie/Desktop/risk/caseStudies/bsh/ss_forecast/forecasts/15
 ggplot(subset(dat,year<2040))+geom_point(aes(year,data))+facet_grid(fleet~.,scale="free")
 ```
 
-
 ```{r, eval=FALSE}
 library(calculus)
 library(compositions)
@@ -698,4 +677,3 @@ fn<-function(x,y)
  dnorm.aplus(c(x,y),hat[,"hat"],cov)
 integral(fn, bounds=list(x=c(1,0),y=c(Inf,1)))$value
 ```
-
