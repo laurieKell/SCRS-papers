@@ -17,6 +17,8 @@ editor_options:
     wrap: 72
 ---
 
+- **Check paths & add #natM at end of M in control file**
+
 Likelihood profiles can be used to identify where there are data conflicts and whether fixed parameters are supported by the data and what drives the assessment and the grid the importance for management 
 
 Once the Base Cases is agreed a sensitivity analysis for a grid of M and beta can be conducted. These parameters are normally fixed in stock assessments, and have a big impact on the estimates of stock status, reference points, and management advice. It is important to see if there is any information in the data to support the choices made as well as the consequences.
@@ -202,7 +204,7 @@ mScen=foreach(i=seq(dim(scen)[1]),
 
     # Modify M vector
     cFl  =scan(file.path(path,M,beta,ctrl),what=as.character(),sep="\n")
-    mRow=grep("# natm",tolower(cFl))
+    mRow=grep("#natm",tolower(cFl))
     for (iRow in mRow){
        mVec =as.numeric(unlist(strsplit(cFl[iRow], "\\s+")))
        mVec =mVec[!is.na(mVec)]*M
