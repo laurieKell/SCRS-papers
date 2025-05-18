@@ -1,0 +1,197 @@
+---
+title: "SMA"
+subtitle: "Compare likelihood profile with the Hessian-based approximation for `SR_LN(R0)`"
+author: 
+  L.T. Kell
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{Estimating $F_{MNY}$ for Atlantic Mackerel}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+
+```{r}
+setwd("C:/active/scrs-papers/ss-ll/Rmd")
+```
+
+
+```{r, knitr, eval=TRUE, echo=FALSE, warning=FALSE, cache=FALSE}
+library(knitr)
+
+opts_chunk$set(comment   =NA, 
+               warning   =FALSE, 
+               message   =FALSE, 
+               error     =FALSE, 
+               echo      =FALSE, 
+               cache     =TRUE, 
+               cache.path="../cache/North-Mh/",
+               fig.path  ="../figs/North-Mh",
+               fig.width =8,
+               fig.height=6,
+               dev       ="png")
+
+iFig=0
+iTab=0
+```
+
+
+
+### **Likelihood Profile for SR_LN(R0)**
+
+Evaluate the likelihood profile for `SR_LN(R0)` 
+
+- Use SS3's `-profile` to fix `SR_LN(R0)` at a range of values around the MLE estimate.
+- For each fixed value, re-estimate other parameters to minimize the negative log-likelihood.
+- Extract likelihood for each profiled point.
+
+
+### **Hessian-Based Approximation**
+
+Use the Hessian matrix to approximate the likelihood curvature around the MLE.
+
+- Run reference case with Hessian calculation enabled (do not use `-nohess`)
+- Extract the asymptotic standard error (SE) for `SR_LN(R0)` from `covar.sso`
+- Construct  quadratic approximation of the likelihood
+
+$$
+\text{Log-Likelihood} \approx \text{MLE Likelihood} - \frac{(R_0 - \hat{R}_0)^2}{2 \cdot \text{SE}^2}
+$$
+
+where $\hat{R}_0$ is the MLE[^3][^4].
+
+
+### **Compare**
+
+- Plot the likelihood profile  and the Hessian-based quadratic approximation 
+    - A close match suggests the likelihood is approximately quadratic, validating Hessian-derived uncertainties.
+    - Deviations indicate non-quadratic behavior (e.g., skewness), requiring profile-based confidence intervals.
+### **Key Diagnostics**
+If the Hessian’s curvature matches the profile’s curvature at the MLE, the standard error is reliable.
+A flat profile for `SR_LN(R0)` suggests poor estimability, while a sharp minimum supports precise estimation.
+
+
+# SS3 profile command for SR_LN(R0)
+
+ss3 -profile -parmtrace profile_parms.csv -probe 0.05 -num_phases 1 -phin 0.01
+
+
+**Hessian Check**:
+    - Verify the Hessian is invertible (no `-nohess` flag).
+    - Confirm small gradients (e.g., `<1e-3`) in `CumReport.sso`[^5].
+    - Non-invertible Hessian Indicates model instability; consider fixing correlated parameters or reweighting composition data.
+    - Profile-Hessian Mismatch use the likelihood profile to define confidence intervals instead of Hessian SEs.
+
+```{r}
+library(r4ss)
+library(ggplot2)
+
+ss0.8=SS_output("C:/active/scrs-papers/ss-ll/data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files/1/1/0.8")
+ss0.9=SS_output("C:/active/scrs-papers/ss-ll/data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files/1/1/0.9")
+ss1.0=SS_output("C:/active/scrs-papers/ss-ll/data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files/1/1")
+ss1.1=SS_output("C:/active/scrs-papers/ss-ll/data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files/1/1/1.1")
+ss1.2=SS_output("C:/active/scrs-papers/ss-ll/data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files/1/1/1.2")
+
+r0Mle=c(ss0.8$parameters$Value[model$parameters$Label=="SR_LN(R0)"],
+        ss0.9$parameters$Value[model$parameters$Label=="SR_LN(R0)"],
+        ss1.0$parameters$Value[model$parameters$Label=="SR_LN(R0)"],
+        ss1.1$parameters$Value[model$parameters$Label=="SR_LN(R0)"],
+        ss1.2$parameters$Value[model$parameters$Label=="SR_LN(R0)"])
+
+r0SE =c(ss0.8$parameters$Parm_StDev[model$parameters$Label=="SR_LN(R0)"],
+        ss0.9$parameters$Parm_StDev[model$parameters$Label=="SR_LN(R0)"],
+        ss1.0$parameters$Parm_StDev[model$parameters$Label=="SR_LN(R0)"],
+        ss1.1$parameters$Parm_StDev[model$parameters$Label=="SR_LN(R0)"],
+        ss1.2$parameters$Parm_StDev[model$parameters$Label=="SR_LN(R0)"])
+
+ll =c(ss0.8$likelihoods_used[1,"values"],
+      ss0.9$likelihoods_used[1,"values"],
+      ss1.0$likelihoods_used[1,"values"],
+      ss1.1$likelihoods_used[1,"values"],
+      ss1.2$likelihoods_used[1,"values"])
+
+## ll contains the NLLs for each profile point, and r0Mle the corresponding R0 values
+deltaNLL=ll= min(ll)
+
+# Quadratic curve
+r0Seq    =seq(min(r0Mle), max(r0Mle), length.out=101)
+quadCurve=(r0Seq-r0Mle[which.min(ll)])^2/(2*r0SE[which.min(ll)]^2)
+
+
+ggplot() +
+  geom_line( data=data.frame(R0=r0Seq, DeltaNLL=quadCurve),
+            aes(x=R0, y=DeltaNLL),  color="red", linewidth=1) +
+  geom_point(data=data.frame(R0=r0Mle, DeltaNLL=delta_NLL),
+             aes(x=R0, y=DeltaNLL), color="blue", size=2) +
+  geom_vline(xintercept=r0Mle[which.min(ll)], linetype="dashed") +
+  ylab("Change in negative log-likelihood") +
+  xlab("SR_LN(R0)")
+```
+
+
+```{r}
+library(r4ss)
+library(ggplot2)
+
+refDir= "../data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files/profile" 
+model=SS_output(refDir, verbose=FALSE)
+
+# Path to your profile directory (generated via SS3 -profile)
+profileDir=refDir
+profile=SSgetoutput(dirvec=profileDir)
+
+# Extract profile results
+profileSmry=SSplotProfile(profile,           # Profile object
+                          plot=FALSE,      # Disable auto-plot
+                          print=FALSE,     # No PDF creation
+                          profile.string="SR_LN(R0)")$TOTAL
+
+# Extract Hessian-Based Estimates
+# Get MLE and SE from base model
+r0Mle=ss$parameters$Value[model$parameters$Label=="SR_LN(R0)"]
+r0SE =ss$parameters$Parm_StDev[model$parameters$Label=="SR_LN(R0)"]
+
+# Quadratic Approximation
+r0Seq=seq(min(profile_summary$Value), 
+              max(profile_summary$Value), 
+              length=100)
+
+quadratic_curve=(r0Seq-r0Mle)^2/(2*r0SE^2)
+
+ggplot() +
+  # Plot likelihood profile points
+  geom_point(data=profile_summary,
+             aes(x=Value, y=delta_NLL),
+             size=2, color="blue") +
+    geom_line(data=data.frame(Value=r0Seq, delta_NLL=quadratic_curve),
+            aes(x=Value, y=delta_NLL),
+            color="red", linewidth=1) +
+  geom_vline(xintercept=r0Mle, linetype="dashed") +
+  labs(x="SR_LN(R0)", 
+       y="Change in negative log-likelihood",
+       title="Likelihood Profile vs. Hessian Approximation",
+       subtitle=paste("MLE =", round(r0Mle, 3), 
+                       "±", round(r0SE, 3), "(SE)")) +
+  theme_bw()
+```
+
+
+Blue points: Actual likelihood profilem Red curve: Hessian-based quadratic approximation, Vertical dashed line: MLE estimate
+
+This visual comparison helps assess whether the Hessian adequately captures the likelihood curvature for uncertainty estimation.
+
+
+
+
+- Good agreement (red line ≈ blue points) near MLE → Hessian reliable
+- Large deviations → Use profile confidence intervals instead
+
+- If `r0SE` is `NA`, check `covar.sso` exists and the Hessian was inverted
+- Use `model$maximum_gradient` to confirm convergence (< 0.001)

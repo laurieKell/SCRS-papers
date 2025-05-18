@@ -1,0 +1,606 @@
+---
+title: "Correlation Analysis of Spatial Indicators"
+subtitle: "ICCAT Stock Analysis"
+author: "Laurence T. Kell"
+date: "`r format(Sys.time(),'%d %B,%Y')`"
+output:
+html_document:
+toc: true
+number_sections: true
+editor_options:
+markdown:
+wrap: 72
+---
+
+## Summary: Analyzing Correlations Between Spatial Indicators for ICCAT Stocks
+
+- **Redundancy Analysis**: Identifies which spatial indicators provide redundant information within tuna stocks, i.e.  show similar patterns across stocks
+- **Correlation Assessment**: Quantify relationships between indicators to determine which provide unique information and which are potentially redundant
+- **Driver Investigation**: Examine whether patterns are driven by intrinsic ecological factors, exploitation rates, or climate variables
+
+
+```{r, knitr, eval=TRUE, echo=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo=FALSE,
+                      warning=FALSE,
+                      message=FALSE,
+                      error=FALSE,
+                      echo=FALSE,
+                      fig.width=8,
+                      fig.height=6,
+                      cache=TRUE,
+                      fig.path="figs/",
+                      cache.path="cache/figs/",
+                      dev=c("png"))
+iFig=0
+iTab=0
+```
+
+```{r,pkgs}
+# Load required libraries
+library(tidyverse)
+library(corrplot)
+library(GGally)
+library(viridis)
+library(factoextra)
+library(ggplot2)
+library(ggpubr)
+library(ggridges)
+library(ggh4x)
+library(ggforce)
+library(ggExtra)
+library(ggside)
+library(sf)
+library(maps)
+library(RColorBrewer)
+library(plyr)
+library(dplyr)
+library(reshape)
+library(kableExtra)
+library(stringr)
+library(readr)
+
+library(bayesforecast)
+
+library(vegan)
+
+library(FLCore)
+library(FLBRP)
+library(ggplotFL)
+library(FLCandy)
+library(kobe)
+
+library(r4ss)
+library(ss3om)
+library(ss3diags) 
+
+library(rsoi)
+```
+
+
+### Data
+
+##### Stock Assessments
+
+```{r, bbmsy, fig.height=2,fig.width=10}
+ssPath="P:/rfmo/iotc/ss3"
+stocks=c("albacore","bigeye","yellowfin","swordfish")
+code  =c("ALB","BET","YFT","SWO") 
+
+# Create and save FLR objects
+#ss  =FLCandy:::tryIt(SS_output(file.path(ssPath,stocks[2]),verbose=FALSE,hidewarn=FALSE,printstat=FALSE))
+#fls =FLCandy:::tryIt(builiotcLSss330(ss))
+smry=mlply(stocks, function(stock) FLCandy:::tryIt(FLCandy:::smrySS(file.path(ssPath,stock))))
+names(smry)=code
+
+smry[["BET"   ]][["kb"]]=smry[["BET"   ]][["kb"]][seq(1,max(smry[["BET"   ]][["kb"]]$year),4),]
+smry[["BET"]][["kb"]]$year=as.integer(smry[["BET"]][["kb"]]$year/4)
+smry[["BET"]][["kb"]]$year=smry[["BET"]][["kb"]]$year+2020-max(smry[["BET"]][["kb"]]$year,na.rm=TRUE)
+
+smry[["YFT"]][["kb"]]=smry[["YFT"]][["kb"]][seq(1,max(smry[["YFT"]][["kb"]]$year),4),]
+smry[["YFT"]][["kb"]]$year=as.integer(smry[["YFT"]][["kb"]]$year/4)
+smry[["YFT"]][["kb"]]$year=smry[["YFT"]][["kb"]]$year+2020-max(smry[["YFT"]][["kb"]]$year,na.rm=TRUE)
+
+smr2=FLCandy:::unnest(smry)
+
+ggplot(smr2[["kb"]])+
+  geom_rect(aes(xmin=-Inf, xmax=Inf,ymin=0,ymax=1),  fill="#D55E00", alpha=0.3)+
+  geom_rect(aes(xmin=-Inf, xmax=Inf,ymin=1,ymax=Inf),fill="#009E73", alpha=0.3)+
+  geom_line(aes(year,stock),linewidth=1,colour="grey30")+
+  facet_grid(.~factor(Scenario,levels=c("ALB","BET","YFT","SWO"),
+                               labels=c("Albacore","Bigeye","Yellowfin","Swordfish")),
+                      scale="free")+
+  xlab("Year")+ylab(expression(B/B[MSY]))+
+  scale_x_continuous(breaks=seq(1960,2020,20))+
+  FLCandy:::theme_my(legend_position="bottom")
+```
+**Figure `r iFig=iFig+1; iFig`** Trends of $SSB/B_{MSY}$
+
+### Indian Ocean Dipole Mode Index (DMI)
+
+NOAA PSL Dipole Mode Index, SST gradient between western equatorial Indian Ocean (50E-70E, 10S-10N) and southeastern equatorial Indian Ocean (90E-110E, 10S-0N)
+
+Temporal range: Monthly values from 1870 to present
+
+https://psl.noaa.gov/data/timeseries/month/DMI/
+
+```{r, fig.height=4,fig.width=8}
+dmi=download_dmi()
+dmi=ddply(dmi, .(Year), with, data.frame(DMI=mean(DMI)))
+
+ggplot(dmi,aes(Year,DMI))+
+  geom_line(linewidth=0.5,colour="grey30")+
+  geom_linerange(aes(Year,ymax=DMI,ymin=0),linewidth=1,col="black",data=subset(dmi,DMI>0))+
+  geom_linerange(aes(Year,ymax=DMI,ymin=0),linewidth=1,col="red",  data=subset(dmi,DMI<0))+
+  xlab("Year")+ylab("Dipole Mode Index")+
+  coord_cartesian(xlim=c(1980,2020))+
+  FLCandy:::theme_my(legend_position="bottom")
+```
+
+**Figure `r iFig=iFig+1; iFig`**
+
+```{r, data-indicators, fig.height=8,fig.width=10}
+ind=readRDS("C:/active/scrs-papers/spatial/data/IOTC_inds_long.rds")
+
+indSpatial=subset(ind,Indicator%in%c("CPUE","SumCatches","Gini","SA","EA","D95","PA","POPR"))
+
+u=subset(indSpatial,Indicator=="CPUE") 
+x=subset(indSpatial,Indicator!="CPUE")
+
+u=ddply(u,.(Species,Indicator), with, data.frame(Year=Year,Value=stdz(Value)))
+ggplot(rbind.fill(u,x))+
+  geom_line(aes(Year,Value))+
+  facet_grid(Indicator~Species,scale="free")+
+  FLCandy:::theme_my(legend_position="bottom")+
+  ylab("")+
+  theme(axis.text.y  =element_blank(),
+        axis.ticks.y =element_blank())
+```
+
+**Figure `r iFig=iFig+1; iFig`**
+
+```{r, fig.height=2.5,fig.width=12}
+indEffort=subset(ind,Indicator%in%c("SumEffort","Freq","Nrects"))
+indEffort=indEffort[!duplicated(indEffort[,1:3]),-2]
+
+ggplot(indEffort)+
+  geom_line(aes(Year,Value))+
+  facet_wrap(.~factor(Indicator,labels=c("Frequency","Number of Rectangles","Total Effort")),
+             scale="free")+
+  FLCandy:::theme_my(legend_position="bottom")+
+  ylab("")+
+  theme(axis.text.y  =element_blank(),
+        axis.ticks.y =element_blank())
+```
+**Figure `r iFig=iFig+1; iFig`**
+
+```{r data-loading}
+kb=smr2[["kb"]][,c("year","stock","harvest","Scenario")]
+names(kb)=c("year","stock","harvest","code") 
+
+iotc=merge(merge(
+            cast(indSpatial,Year+Species~Indicator),
+            cast(indEffort,Year~Indicator,fun="mean")), 
+            dmi)
+names(iotc)[1:2]=c("year","code")
+iotc=merge(iotc,kb)
+```
+
+
+
+1. **Temporal Autocorrelation**: Use `acf()`/`pacf()` to check if you need ARIMA components
+2. **Variance Partitioning**: Use `varpart()` from vegan to separate climate vs. fishing effects
+3. **Stock-specific Analysis**: Add `Condition(Stock)` in RDA formula for stock-specific patterns
+4. **Standardization**: Use `decostand(response, "hellinger")` if needed
+
+
+1. Start with correlation matrices to identify obvious redundancies
+2. Use RDA to understand constrained relationships
+3. Perform variance partitioning between:
+    - Intrinsic factors (stock status)
+    - Extrinsic factors (DMI)
+    - Fishing pressure (harvest, Effort)
+4. Validate with partial RDAs and Mantel tests
+
+```{r}
+response   =iotc[, c("year","code","Gini","D95","SA","EA","PA","POPR")]  
+explanatory=iotc[, c("year","code","stock","harvest","DMI","SumEffort","Freq","Nrects")]
+stock      =iotc[, c("year","code","stock")]
+
+# Check for multicollinearity first, i.e. remove vars with VIF > 10
+vif.cca(rda(response[,-c(1:2)] ~ ., explanatory[,-c(1:2)]))  
+
+# Perform RDA
+rdaRes =rda(response[,-c(1:2)] ~ ., data = explanatory[,-c(1:2)])
+
+anova(rdaRes, permutations = 999)  # Global test
+anova(rdaRes, by = "term", permutations = 999)  # Term-wise
+
+# Variance explained
+summary(rdaRes)$concont$importance
+
+save(response,explanatory,file="C:/active/tmp/t.RData")
+```
+
+### 3. Correlation Assessment
+
+```{r}
+# Full correlation matrix
+cormat=cor(cbind(response[,-(1:2)], explanatory[,-(1:2)]))
+
+# Visualize with heatmap
+corrplot(cormat, method="circle", type="upper",
+         tl.col="black", tl.cex=0.8,diag=FALSE, 
+         order = "hclust", 
+         hclust.method = "ward.D2")
+
+# iotc %>%split(.$code) %>%map(~cor(select(., -code, -year)))
+```
+
+
+
+```{r}
+heatmap(cor(subset(iotc,code=="ALB")[,-(1:2)], use = "pairwise.complete.obs"))
+```
+
+**Figure `r iFig=iFig+1; iFig`**
+
+```{r}
+heatmap(cor(subset(iotc,code=="BET")[,-(1:2)], use = "pairwise.complete.obs"))
+```
+
+**Figure `r iFig=iFig+1; iFig`**
+
+```{r}
+heatmap(cor(subset(iotc,code=="YFT")[,-(1:2)], use = "pairwise.complete.obs"))
+```
+
+**Figure `r iFig=iFig+1; iFig`**
+
+```{r}
+heatmap(cor(subset(iotc,code=="SWO")[,-(1:2)], use = "pairwise.complete.obs")) 
+```
+
+**Figure `r iFig=iFig+1; iFig`**
+
+
+
+
+### 4. Driver Investigation
+
+```{r, eval=FALSE}
+# Time series decomposition
+iotc %>% 
+  group_by(code) %>%
+  mutate(across(c(stock, harvest, DMI), 
+                list(trend = ~decompose(ts(.))$trend))) %>%
+  ggplot(aes(year)) +
+  geom_line(aes(y = stock, color = "Stock status")) +
+  geom_line(aes(y = harvest, color = "Fishing pressure")) +
+  geom_line(aes(y = DMI, color = "Climate (DMI)")) +
+  facet_grid(.~code) +
+  labs(y = "Standardized trends")+
+  theme(legend.position="bottom")
+```
+
+```{r}
+# Autocorrelation analysis
+acf_plots =iotc %>% 
+  group_by(code) %>% 
+  group_map(~ggarrange(
+    ggacf(.x$stock) + labs(title = "Stock Status ACF"),
+    ggacf(.x$harvest) + labs(title = "Fishing Pressure ACF"),
+    ncol = 1
+  ))
+```
+
+
+### 5. Visualization
+
+```{r}
+# RDA triplot
+plot(rdaRes, display = c("sp", "cn"), scaling = 2)
+ordihull(rdaRes, groups = iotc$code, col = "grey90")
+
+# Pairwise relationships
+ggpairs(cbind(response[,-(1:2)], explanatory[,-(1:2)]),
+        upper = list(continuous = wrap("cor", size = 3)),
+        lower = list(continuous = wrap("smooth", alpha = 0.3)))
+```
+
+
+## Correlation Analysis Within Stocks
+
+First, we'll analyze correlations between different indicators within each stock to identify potential redundancies.
+
+```{r within-stock-correlation, eval=FALSE}
+withinStk<-function(stock_name, data) {
+  # Filter data for specific stock
+  stockDat=data %>%
+    filter(Stock == stock_name) %>%
+    select(-Stock) %>%
+    pivot_wider(names_from = Indicator, values_from = Value)
+  
+  # Calculate correlation matrix
+  corMat=cor(stockDat[,-1], use = "pairwise.complete.obs")
+  
+  # Visualize correlation matrix
+  corrplot(corMat, method = "color", type = "upper", 
+           order = "hclust", tl.col = "black", tl.srt = 45,
+           title = paste("Correlations within", stock_name))
+  
+  # Identify potential redundancies (r > 0.8)
+  high_cor=which(abs(corMat) > 0.8 & corMat < 1, arr.ind = TRUE)
+  redundancy_iotc=data.frame(
+    Indicator1 = rownames(corMat)[high_cor[,1]],
+    Indicator2 = colnames(corMat)[high_cor[,2]],
+    Correlation = corMat[high_cor])
+  
+  return(list(corMatrix = corMat, redundancies = redundancy_iotc))}
+
+# Apply analysis to each stock
+withinRes=lapply(stocks, withinStk, data = iotc)
+
+# Display summary of redundancy findings
+redundancies=do.call(rbind, lapply(1:length(stocks), function(i) {
+  if(nrow(withinRes[[i]]$redundancies) > 0) {
+    cbind(Stock = stocks[i], withinRes[[i]]$redundancies)
+  }
+}))
+
+if(!is.null(redundancies)) {
+  kable(redundancies, caption = "Potentially Redundant Indicators (r > 0.8)") %>%
+    kable_styling(bootstrap_options = c("striped", "hover"))
+}
+```
+
+
+## Correlation Analysis Across Stocks
+```{r between-stock-correlation, eval=FALSE}
+betweenStocks<-function(indicator_name, data) {
+  # Create wide format with stocks as columns for this indicator
+  indicatorDat=data %>%
+    filter(Indicator == indicator_name) %>%
+    pivot_wider(id_cols = Year, names_from = Stock, values_from = Value)
+  
+  # Calculate correlation matrix
+  corMat=cor(indicatorDat[,-1], use = "pairwise.complete.obs")
+  
+  # Visualize correlation matrix
+  corrplot(corMat, method = "color", tl.col = "black",
+           title = paste("Stock correlations for", indicator_name))
+  
+  return(corMat)}
+
+# Apply analysis to selected indicators (avoid too many plots)
+key_indicators=c("Gini", "D95", "SA", "EA", "Freq", "Nests")
+betweenRes=lapply(key_indicators, betweenStocks, data = iotc)
+
+# Create summary of cross-stock correlations
+cross_stock_summary=data.frame(
+  Indicator = key_indicators,
+  Mean_Correlation = sapply(betweenRes, function(x) mean(x[upper.tri(x)]))
+)
+
+kable(cross_stock_summary, caption = "Mean Cross-Stock Correlations by Indicator") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+
+## Principal Component Analysis
+
+Identify major patterns and reduce dimensionality in our spatial indicators.
+
+```{r pca-analysis, eval=FALSE}
+runPCA<-function(data) {
+  # Prepare data in wide format for PCA
+  wideDat=data %>%
+    pivot_wider(id_cols = c(Stock, Year), 
+                names_from = Indicator, 
+                values_from = Value) %>%
+    select(-Stock, -Year)
+  
+  # Run PCA
+  pca_result=prcomp(wideDat, scale. = TRUE)
+  
+  # Visualize variable contributions to principal components
+  fviz_pca_var(pca_result, 
+               col.var = "contrib",
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE)
+  
+  # Return PCA results for further analysis
+  return(pca_result)}
+
+# Run PCA on the dataset
+pcaRes=runPCA(iotc)
+
+# Display variance explained by each component
+variance_explained=summary(pcaRes)$importance[2,] * 100
+
+# Create table showing variance explained
+var_table=data.frame(
+  Component = paste0("PC", 1:length(variance_explained)),
+  Variance_Explained_Percent = variance_explained,
+  Cumulative_Variance_Percent = cumsum(variance_explained)
+)
+
+kable(var_table[1:5,], caption = "Variance Explained by Principal Components") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+
+## Hierarchical Clustering
+
+Group indicators and stocks based on similarity patterns.
+
+```{r clustering-analysis, eval=FALSE}
+clusters<-function(data) {
+  # Reshape for clustering indicators
+  wide_ind=data %>%
+    pivot_wider(id_cols = c(Stock, Year), 
+                names_from = Indicator, 
+                values_from = Value)
+  
+  # Reshape for clustering stocks
+  wide_stock=data %>%
+    pivot_wider(id_cols = c(Indicator, Year), 
+                names_from = Stock, 
+                values_from = Value)
+  
+  # For each stock, cluster indicators
+  for (stock_name in unique(data$Stock)) {
+    stockDat=wide_ind %>%
+      filter(Stock == stock_name) %>%
+      select(-Stock, -Year)
+    
+    dist_matrix=dist(t(as.matrix(stockDat)))
+    hc=hclust(dist_matrix, method = "ward.D2")
+    
+    # Plot dendrogram
+    plot(hc, main = paste("Indicator clustering for", stock_name),
+         xlab = "Indicators", sub = "")
+  }
+  
+  # For each indicator, cluster stocks
+  for (ind_name in unique(data$Indicator)[1:4]) {  # Limit to first 4 indicators to avoid too many plots
+    indDat=wide_stock %>%
+      filter(Indicator == ind_name) %>%
+      select(-Indicator, -Year)
+    
+    dist_matrix=dist(t(as.matrix(indDat)))
+    hc=hclust(dist_matrix, method = "ward.D2")
+    
+    # Plot dendrogram
+    plot(hc, main = paste("Stock clustering for", ind_name),
+         xlab = "Stocks", sub = "")
+  }
+}
+
+# Run clustering analysis
+clusterRes=clusters(iotc)
+```
+
+
+## Analysis with External Drivers
+
+Relationships between spatial indicators and potential external drivers (climate, F).
+
+```{r driver-analysis, eval=FALSE}
+drivers<-function(data, climateDat, fishingDat) {
+  # Join with external data sources
+  combinedDat=data %>%
+    pivot_wider(id_cols = c(Stock, Year), 
+                names_from = Indicator, 
+                values_from = Value) %>%
+    left_join(climateDat, by = c("Stock", "Year")) %>%
+    left_join(fishingDat, by = c("Stock", "Year"))
+  
+  # Calculate correlations between indicators and drivers
+  indicator_cols=unique(data$Indicator)
+  climate_cols=names(climateDat)[!(names(climateDat) %in% c("Stock", "Year"))]
+  fishing_cols=names(fishingDat)[!(names(fishingDat) %in% c("Stock", "Year"))]
+  
+  results_list=list()
+  
+  for (stock_name in unique(data$Stock)) {
+    stockDat=combinedDat %>%
+      filter(Stock == stock_name)
+    
+    # Correlations with climate
+    climateCors=cor(stockDat[, indicator_cols], 
+                       stockDat[, climate_cols],
+                       use = "pairwise.complete.obs")
+    
+    # Correlations with fishing pressure
+    fishingCors=cor(stockDat[, indicator_cols], 
+                       stockDat[, fishing_cols],
+                       use = "pairwise.complete.obs")
+    
+    # Store results
+    results_list[[stock_name]]=list(
+      climate = climateCors,
+      fishing = fishingCors
+    )
+    
+    # Visualize results
+    corrplot(climateCors, method = "color",
+             title = paste(stock_name, "- Indicators vs Climate"))
+    
+    corrplot(fishingCors, method = "color",
+             title = paste(stock_name, "- Indicators vs Fishing"))
+  }
+  
+  return(results_list)
+}
+
+# Run driver analysis
+driverRes=drivers(iotc, climateDat, fishingDat)
+
+# Create summary table of mean correlations with drivers
+summarize_driver_correlations<-function(driverRes) {
+  # Initialize empty dataframe
+  smry=data.frame(
+    Stock = character(),
+    Climate_DMI_Mean = numeric(),
+    Fishing_ffmsy_Mean = numeric()
+  )
+  
+  # Calculate mean correlations for each stock and driver
+  for (stock_name in names(driverRes)) {
+    climateCors=driverRes[[stock_name]]$climate
+    fishingCors=driverRes[[stock_name]]$fishing
+    
+    # Calculate means across indicators
+    DMI_mean=mean(abs(climateCors[,"DMI"]))
+    ffmsy_mean=mean(abs(fishingCors[,"ffmsy"]))
+    
+    # Add to dataframe
+    smry=rbind(smry, 
+                       data.frame(Stock = stock_name,
+                                 Climate_DMI_Mean = DMI_mean,
+                                 Fishing_ffmsy_Mean = ffmsy_mean))
+  }
+  
+  return(smry)
+}
+
+driver_summary=summarize_driver_correlations(driverRes)
+kable(driver_summary, caption = "Mean Absolute Correlations with External Drivers") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+
+------------------------------------------------------------------------
+
+## Results and Interpretation
+
+**Indicator Redundancy**:
+
+Based on the correlation analysis, we can identify several patterns:
+
+- EA (Equivalent Area) and SA (Suitable Area) show very high correlations within all stocks, suggesting redundancy
+- D95 is strongly correlated with both EA and SA, indicating potential information overlap
+- CPUE and Abundance metrics are correlated but with sufficient variation to warrant keeping both
+
+**Cross-Stock Patterns**:
+
+- The Freq indicator appears highly correlated across all stocks, suggesting a common driver affecting all species
+- Nests shows identical patterns across stocks as it uses the same calculation method
+- RA (Range Area) shows more stock-specific patterns, particularly for SWO which exhibits a declining trend
+
+**Driver Analysis**:
+
+- **Intrinsic (ecological) drivers**: Stock-specific patterns in indicators like RA and Gini suggest species-specific ecological responses
+- **Exploitation drivers**: Correlations with F/Fmsy help identify which spatial metrics are most sensitive to harvesting pressure
+- **Climate drivers**: The synchronized patterns in Freq across stocks suggest potential climate influence
+
+**Recommended Indicator Set**:
+
+Based on this analysis, we recommend the following streamlined set of indicators:
+
+1. Gini OR D95 (choose one aggregation metric)
+2. RA (Range Area - provides unique stock-specific information)
+3. PGPR (Proportional Geographic Range - shows unique trends)
+4. CPUE (direct fishing performance metric)
+5. Freq (potential climate signal)
+

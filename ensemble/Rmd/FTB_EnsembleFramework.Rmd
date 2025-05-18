@@ -1,0 +1,563 @@
+---
+title: "WKBSEABASS North"
+subtitle: "Sensitivity Analysis for M and Steepness"
+author: 
+  L.T. Kell
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{Estimating $F_{MNY}$ for Atlantic Mackerel}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+
+# Implementing Spence's Ensemble Framework for Stock Assessment Models
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, 
+                     fig.width = 10, fig.height = 6)
+
+# Load required packages
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(rstan)
+library(reshape2)
+library(mvtnorm)
+library(grid)
+library(gridExtra)
+
+# Set Stan options for faster sampling
+options(mc.cores = parallel::detectCores() - 2)
+rstan_options(auto_write = TRUE)
+```
+
+
+## Introduction
+
+In fisheries stock assessment, multiple models with different assumptions often yield diverse results. Rather than selecting a single "best" model, ensemble approaches combine information from multiple models to provide more robust estimates with better-characterized uncertainty. This document implements Michael A. Spence's discrepancy-based ensemble framework, which explicitly models the relationship between assessment outputs and the true state through discrepancy terms.
+
+## Theoretical Background
+
+Spence's approach recognizes that all models have discrepancies from the true state of the ecosystem. According to Spence's framework, the logarithm of each assessment's estimated spawning stock biomass (SSB) relates to the true SSB through the equation:
+
+$
+\ln(\hat{x}_k(t)) = \ln(y(t)) + \zeta_k(t) + \epsilon_k(t)
+$
+
+Where:
+
+- $\hat{x}_k(t)$ is the estimated SSB from model $k$ at time $t$
+- $y(t)$ is the true SSB at time $t$ (unknown)
+- $\zeta_k(t)$ is the discrepancy of model $k$
+- $\epsilon_k(t)$ represents parameter uncertainty, typically modeled as $N(0, \sigma^2_k(t))$
+
+The discrepancy term can be further decomposed:
+
+$
+\zeta_k(t) = \gamma_k + \delta_k(t)
+$
+
+Where:
+
+- $\gamma_k$ is the long-term discrepancy (fixed in time)
+- $\delta_k(t)$ is the short-term discrepancy (changing over time)
+
+Since assessment models often share similar structures and are fitted to the same data, their short-term discrepancies are typically correlated:
+
+$
+\delta_k(t) = \eta(t) + z_k(t)
+$
+
+Where:
+
+- $\eta(t)$ is the shared short-term discrepancy across models
+- $z_k(t)$ is the individual short-term discrepancy specific to model $k$
+
+
+## Implementation
+
+This document implements the ensemble approach for a grid of stock assessment models with different values for natural mortality (M) and steepness (h).
+
+### Define Path and Scenarios
+
+```{r scenarios}
+# Define the working directory - modify as needed
+path <- getwd()
+
+# Define the grid of scenarios
+scen <- expand.grid(M = seq(0.4, 1.2, 0.1),
+                   h = c(0.8, 0.9, 0.999))
+```
+
+
+### Extract Model Outputs
+
+```{r extract_data}
+# Function to extract time series from stock assessment models
+getSS <- function(M, h, path = getwd()) {
+  # Load the saved SS output
+  load(file.path(path, M, h, "ss.RData"))
+  
+  # Extract SSB time series with uncertainty
+  ts <- ss$timeseries %>%
+    dplyr::select(Yr, SpawnBio) %>%
+    dplyr::rename(year = Yr, ssb = SpawnBio)
+  
+  # Extract uncertainty if available
+  if ("derived_quants" %in% names(ss)) {
+    sd <- ss$derived_quants %>%
+      filter(grepl("^SSB_", Label)) %>%
+      mutate(year = as.numeric(gsub("SSB_", "", Label))) %>%
+      dplyr::select(year, StdDev) %>%
+      dplyr::rename(ssb_sd = StdDev)
+    
+    ts <- left_join(ts, sd, by = "year")
+  } else {
+    # If standard deviation not available, use 10% of SSB as a rough estimate
+    ts$ssb_sd <- ts$ssb * 0.1
+  }
+  
+  # Add model identifiers
+  ts$M <- M
+  ts$h <- h
+  
+  return(ts)
+}
+
+# Apply function to all models in the grid
+# Note: This is commented out as it requires the actual model outputs to be in place
+# In practice, you would uncomment and run this
+# outputs <- list()
+# for(i in 1:nrow(scen)) {
+#   M <- scen[i, "M"]
+#   h <- scen[i, "h"]
+#   outputs[[paste0("M", M, "_h", h)]] <- getSS(M, h, path)
+# }
+# 
+# outputs <- bind_rows(outputs, .id = "model_id")
+# outputs <- outputs %>%
+#   mutate(logSSB = log(ssb),
+#          logSD = ssb_sd / ssb)  # Delta method for SD on log scale
+# 
+# # Filter to a common time period across all models
+# yrs <- outputs %>%
+#   group_by(year) %>%
+#   dplyr::summarize(count = dplyr::n()) %>%
+#   filter(count == nrow(scen)) %>%
+#   pull(year)
+# 
+# outputs <- outputs %>% 
+#   filter(year %in% yrs) %>% 
+#   filter(!is.na(ssb_sd))
+```
+
+
+### Define the Stan Model for Discrepancy-Based Ensemble
+
+```{r stan_model}
+stanCode <- "
+data {
+  int<lower=1> nObs;         // Total number of observations
+  int<lower=1> nYrs;         // Number of years
+  int<lower=1> nModels;      // Number of models
+  
+  int<lower=1> yearIdx[nObs]; // Year index for each observation
+  int<lower=1> modelIdx[nObs]; // Model index for each observation
+  
+  vector[nObs] logSSB;        // Log SSB observations
+  vector<lower=0>[nObs] logSD; // Observation standard deviations
+}
+
+parameters {
+  // True state
+  vector[nYrs] log_true_ssb;
+  
+  // Long-term discrepancy (gamma)
+  vector[nModels] gamma;
+  
+  // Parameters for shared short-term discrepancy (eta)
+  vector[nYrs] eta;
+  real<lower=-1,upper=1> rho_eta;
+  real<lower=0> sigma_eta;
+  
+  // Parameters for individual short-term discrepancy (z)
+  matrix[nYrs, nModels] z;
+  vector<lower=-1,upper=1>[nModels] rho_z;
+  vector<lower=0>[nModels] sigma_z;
+  
+  // Process error for true state
+  real<lower=-1,upper=1> rho_true;
+  real<lower=0> sigma_true;
+}
+
+model {
+  // Priors for true state process
+  rho_true ~ uniform(-0.9, 0.9);
+  sigma_true ~ cauchy(0, 1);
+  
+  // Prior for initial state
+  log_true_ssb[^1] ~ normal(10, 2);
+  
+  // True state process (AR1)
+  for (t in 2:nYrs) {
+    log_true_ssb[t] ~ normal(rho_true * log_true_ssb[t-1], sigma_true);
+  }
+  
+  // Priors for long-term discrepancy
+  gamma ~ normal(0, 1);
+  
+  // Priors for shared short-term discrepancy
+  rho_eta ~ uniform(-0.9, 0.9);
+  sigma_eta ~ cauchy(0, 1);
+  eta[^1] ~ normal(0, sigma_eta / sqrt(1 - square(rho_eta)));
+  
+  // Shared discrepancy process (AR1)
+  for (t in 2:nYrs) {
+    eta[t] ~ normal(rho_eta * eta[t-1], sigma_eta);
+  }
+  
+  // Priors for individual short-term discrepancy
+  rho_z ~ uniform(-0.9, 0.9);
+  sigma_z ~ cauchy(0, 1);
+  
+  // Individual discrepancy processes (AR1)
+  for (k in 1:nModels) {
+    z[1, k] ~ normal(0, sigma_z[k] / sqrt(1 - square(rho_z[k])));
+    for (t in 2:nYrs) {
+      z[t, k] ~ normal(rho_z[k] * z[t-1, k], sigma_z[k]);
+    }
+  }
+  
+  // Likelihood
+  for (i in 1:nObs) {
+    int t = yearIdx[i];
+    int k = modelIdx[i];
+    
+    logSSB[i] ~ normal(log_true_ssb[t] + gamma[k] + eta[t] + z[t, k], logSD[i]);
+  }
+}
+
+generated quantities {
+  vector[nObs] logSSBHat;
+  vector[nObs] ssbHat;
+  vector[nYrs] true_ssb;
+  
+  for (t in 1:nYrs) {
+    true_ssb[t] = exp(log_true_ssb[t]);
+  }
+  
+  for (i in 1:nObs) {
+    int t = yearIdx[i];
+    int k = modelIdx[i];
+    logSSBHat[i] = log_true_ssb[t] + gamma[k] + eta[t] + z[t, k];
+    ssbHat[i] = exp(logSSBHat[i]);
+  }
+}
+"
+
+# Save the Stan model
+writeLines(stanCode, "discrepancy_model.stan")
+```
+
+
+### Prepare Data and Fit the Model
+
+```{r fit_model, eval=FALSE}
+# Prepare data for Stan
+stan_data <- list(
+  nObs = nrow(outputs),
+  nYrs = length(yrs),
+  nModels = nrow(scen),
+  
+  yearIdx = match(outputs$year, yrs),
+  modelIdx = as.numeric(factor(outputs$model_id)),
+  
+  logSSB = outputs$logSSB,
+  logSD = outputs$logSD
+)
+
+# Fit the model
+ensembleFit <- stan(
+  file = "discrepancy_model.stan",
+  data = stan_data,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  refresh = 200,
+  control = list(adapt_delta = 0.9, max_treedepth = 12)
+)
+
+# Save the fitted model
+save(ensembleFit, file = "ensemble_fit.RData")
+```
+
+
+### Extract Results and Create Summary Statistics
+
+```{r extract_results, eval=FALSE}
+# Extract posterior samples
+posteriors <- rstan::extract(ensembleFit)
+
+log_true_ssbSamples <- posteriors$log_true_ssb
+true_ssbSamples <- exp(log_true_ssbSamples)
+
+# Calculate posterior summaries for true state
+true_ssb_summary <- data.frame(
+  year = yrs,
+  median_ssb = apply(true_ssbSamples, 2, median),
+  mean_ssb = apply(true_ssbSamples, 2, mean),
+  lower_95 = apply(true_ssbSamples, 2, quantile, 0.025),
+  upper_95 = apply(true_ssbSamples, 2, quantile, 0.975)
+)
+
+# Extract discrepancy components
+gammaSamples <- posteriors$gamma  # Long-term discrepancy
+etaSamples <- posteriors$eta      # Shared short-term discrepancy
+zSamples <- posteriors$z          # Individual short-term discrepancy
+
+# Summarize discrepancy components
+gamma_summary <- data.frame(
+  model = paste0("Model_", 1:stan_data$nModels),
+  M = scen$M,
+  h = scen$h,
+  median_gamma = apply(gammaSamples, 2, median),
+  mean_gamma = apply(gammaSamples, 2, mean),
+  lower_95 = apply(gammaSamples, 2, quantile, 0.025),
+  upper_95 = apply(gammaSamples, 2, quantile, 0.975)
+)
+
+eta_summary <- data.frame(
+  year = yrs,
+  median_eta = apply(etaSamples, 2, median),
+  mean_eta = apply(etaSamples, 2, mean),
+  lower_95 = apply(etaSamples, 2, quantile, 0.025),
+  upper_95 = apply(etaSamples, 2, quantile, 0.975)
+)
+```
+
+
+### Plot the Ensemble Results
+
+```{r plot_ensemble, eval=FALSE}
+# Plot the ensemble SSB estimates with uncertainty
+ggplot(true_ssb_summary, aes(x = year)) +
+  geom_ribbon(aes(ymin = lower_95, ymax = upper_95), fill = "grey70", alpha = 0.5) +
+  geom_line(aes(y = median_ssb), linewidth = 1) +
+  geom_line(data = outputs,
+            aes(x = year, y = ssb, group = model_id, color = as.factor(M)),
+            linetype = "dashed", alpha = 0.6) +
+  labs(title = "Ensemble Stock Assessment: Spawning Stock Biomass",
+       subtitle = "Solid line shows ensemble estimate with 95% credible interval",
+       x = "Year",
+       y = "SSB",
+       color = "Natural Mortality (M)") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+
+## Extending the Framework to Other Variables
+
+The approach can be generalized to create ensembles for other stock assessment variables beyond SSB.
+
+```{r generalized_function}
+# Function to extract any variable from stock assessment models
+getSSVar <- function(M, h, variable = "SpawnBio", path = getwd()) {
+  # Load the saved SS output
+  load(file.path(path, M, h, "ss.RData"))
+  
+  # Extract time series for the requested variable
+  if (variable %in% names(ss$timeseries)) {
+    ts <- ss$timeseries %>%
+      dplyr::select(Yr, !!sym(variable)) %>% 
+      dplyr::rename(year = Yr, value = !!sym(variable))
+  } else {
+    stop(paste("Variable", variable, "not found in the model output timeseries"))
+  }
+  
+  # Extract uncertainty if available
+  # Determine pattern for matching in derived_quants
+  pattern <- paste0("^", variable, "_")
+  if (variable == "SpawnBio") pattern <- "^SSB_"  # Special case for SSB
+  if (variable == "F") pattern <- "^F_" # Special case for F
+  
+  if ("derived_quants" %in% names(ss)) {
+    sd <- ss$derived_quants %>%
+      filter(grepl(pattern, Label)) %>%
+      mutate(year = as.numeric(gsub(pattern, "", Label))) %>%
+      dplyr::select(year, StdDev) %>%
+      dplyr::rename(value_sd = StdDev)
+    
+    ts <- left_join(ts, sd, by = "year")
+  } else {
+    # If standard deviation not available, use 10% as rough estimate
+    ts$value_sd <- ts$value * 0.1
+  }
+  
+  # Add model identifiers
+  ts$M <- M
+  ts$h <- h
+  ts$variable <- variable
+  
+  return(ts)
+}
+```
+
+
+## Creating a Config-Based Ensemble Approach
+
+```{r config_approach}
+# Function to prepare data for ensemble model
+prepareEnsembleData <- function(scen, variable = "SpawnBio", path = getwd()) {
+  # Apply function to all models in the grid
+  outputs <- list()
+  for (i in 1:nrow(scen)) {
+    M <- scen[i, "M"]
+    h <- scen[i, "h"]
+    outputs[[paste0("M", M, "_h", h)]] <- getSSVar(M, h, variable, path)
+  }
+  
+  # Combine all outputs
+  outputs <- bind_rows(outputs, .id = "model_id")
+  outputs <- outputs %>%
+    mutate(logValue = log(value),
+           logSD = value_sd / value)  # Delta method for SD on log scale
+  
+  # Filter to common time period
+  yrs <- outputs %>%
+    group_by(year) %>%
+    dplyr::summarize(count = dplyr::n()) %>%
+    filter(count == nrow(scen)) %>%
+    pull(year)
+  
+  outputs <- outputs %>% 
+    filter(year %in% yrs) %>% 
+    filter(!is.na(value_sd))
+  
+  return(list(data = outputs, years = yrs))
+}
+
+# Function to run ensemble for a specific variable
+runEnsemble <- function(variable, path = getwd()) {
+  # Prepare data
+  prep <- prepareEnsembleData(scen, variable = variable, path = path)
+  outputs <- prep$data
+  yrs <- prep$years
+  
+  # Prepare Stan data
+  stan_data <- list(
+    nObs = nrow(outputs),
+    nYrs = length(yrs),
+    nModels = nrow(scen),
+    
+    yearIdx = match(outputs$year, yrs),
+    modelIdx = as.numeric(factor(outputs$model_id)),
+    
+    logValue = outputs$logValue,
+    logSD = outputs$logSD
+  )
+  
+  # Fit the model
+  modelFile <- paste0("discrepancy_model_", variable, ".stan")
+  writeLines(stanCode, modelFile)
+  
+  ensembleFit <- stan(
+    file = modelFile,
+    data = stan_data,
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,
+    refresh = 200,
+    control = list(adapt_delta = 0.9, max_treedepth = 12)
+  )
+  
+  # Extract results
+  posteriors <- rstan::extract(ensembleFit)
+  
+  log_true_valueSamples <- posteriors$log_true_ssb
+  true_valueSamples <- exp(log_true_valueSamples)
+  
+  # Calculate posterior summaries
+  true_value_summary <- data.frame(
+    year = yrs,
+    variable = variable,
+    median_value = apply(true_valueSamples, 2, median),
+    mean_value = apply(true_valueSamples, 2, mean),
+    lower_95 = apply(true_valueSamples, 2, quantile, 0.025),
+    upper_95 = apply(true_valueSamples, 2, quantile, 0.975)
+  )
+  
+  # Return results
+  return(list(
+    fit = ensembleFit,
+    summary = true_value_summary,
+    data = outputs,
+    posteriors = posteriors
+  ))
+}
+
+# Function to plot ensemble results
+plotEnsembleVariable <- function(ensemble_result, title = NULL) {
+  variable <- unique(ensemble_result$summary$variable)
+  
+  if (is.null(title)) {
+    title <- paste("Ensemble", variable, "Estimate")
+  }
+  
+  ggplot(ensemble_result$summary, aes(x = year)) +
+    geom_ribbon(aes(ymin = lower_95, ymax = upper_95), fill = "grey70", alpha = 0.5) +
+    geom_line(aes(y = median_value), linewidth = 1) +
+    geom_line(data = ensemble_result$data,
+              aes(x = year, y = value, group = model_id, color = as.factor(M)),
+              linetype = "dashed", alpha = 0.6) +
+    labs(title = title,
+         subtitle = "Solid line shows ensemble estimate with 95% credible interval",
+         x = "Year",
+         y = variable,
+         color = "Natural Mortality (M)") +
+    theme_minimal() +
+    theme(legend.position = "bottom")
+}
+```
+
+
+## Advantages of Spence's Ensemble Approach
+
+Spence's ensemble approach offers several advantages over traditional ensemble methods:
+
+1. **Explicit Discrepancy Modeling**: Rather than simply averaging models or selecting the "best" one, it models the relationship between each assessment and the true (unknown) state, accounting for systematic biases.
+2. **Temporal Structure**: By using AR(1) processes for discrepancy terms, the approach captures temporal patterns in model errors.
+3. **Shared Discrepancy Recognition**: The approach acknowledges that models fitted to the same data will have correlated errors, preventing artificial confidence when similar models agree.
+4. **Improved Uncertainty Quantification**: The Bayesian framework provides more comprehensive uncertainty estimates that account for both parameter uncertainty and structural differences.
+5. **Superior Performance**: According to Spence's research, this approach outperformed the "best" weighting scheme for mixture models 99% of the time and weighted averages 48% of the time.
+
+## Conclusion
+
+Spence's ensemble framework provides a more robust approach to combining stock assessment models than traditional weighting schemes. By explicitly modeling the discrepancy between model outputs and the true state, this approach captures both long-term biases and short-term patterns of errors across models. The implementation in this document allows for creating ensembles across a grid of models with varying natural mortality (M) and steepness (h) parameters, providing more reliable estimates of stock status with properly characterized uncertainty.
+
+This framework can be extended to other stock assessment variables beyond SSB, offering a comprehensive approach to quantifying uncertainty in fisheries management.
+
+<div style="text-align: center">⁂</div>
+
+[^1]: https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/11254397/0af2e8c1-7240-4773-835a-bf1c1f7ceb3f/Spence_ModelWeighting_beamer.pdf
+
+[^2]: https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/11254397/04bf867f-521d-4231-99b9-f3a921438e69/Spence_ModelWeighting_text.pdf
+
+[^3]: https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/11254397/d7c8d718-6ff1-4fb3-adeb-4807aeded019/wkbsea-north-Mh.html
+
+[^4]: https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/11254397/c412252e-a7a1-49f7-baf2-07a3cc5ccf40/wkbsea-north-Mh.Rmd
+
+[^5]: https://pplx-res.cloudinary.com/image/upload/v1741820911/user_uploads/ZsLcIUfYZvURvOA/image.jpg
+
+[^6]: https://pplx-res.cloudinary.com/image/upload/v1741843720/user_uploads/NoBtdUOxKGMLzNc/image.jpg
+
+[^7]: https://pplx-res.cloudinary.com/image/upload/v1741844637/user_uploads/dCRsCCMWwuAmTeB/image.jpg
+

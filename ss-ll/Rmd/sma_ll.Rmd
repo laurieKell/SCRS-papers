@@ -52,7 +52,7 @@ The log-likelihood  changes slightly with $M$, primarily driven by the Age and L
 
 ### Production functions
 
-For lower $M$ values (e.g., $M = 0.5$) $B_0$ is higher, and the ratio of $B_{MSY}/B_0$ decreases as $M$ increases. $F_{MSY}$ as indicated by the slope of the dashed also increases with $M$, although $MSY$ only increases slightly. The ICES taget region delimited by the green lines is found within the green $MSY$ quadrant. The stock is only acheiving the ICES targets if $M$ is high, as there is an inverse relationship between $M$ and $F$ so that $Z$ stays relatively constant. The red line denotes current $F$ and is only below $F_{MSY}$ for low $M$. beta has less of an effect that $M$, the main effect is on $F$ as beta increases $F_{MSY}$ increases, so that higher fishing levels are sustainable. 
+For lower $M$ values (e.g., $M=0.5$) $B_0$ is higher, and the ratio of $B_{MSY}/B_0$ decreases as $M$ increases. $F_{MSY}$ as indicated by the slope of the dashed also increases with $M$, although $MSY$ only increases slightly. The ICES taget region delimited by the green lines is found within the green $MSY$ quadrant. The stock is only acheiving the ICES targets if $M$ is high, as there is an inverse relationship between $M$ and $F$ so that $Z$ stays relatively constant. The red line denotes current $F$ and is only below $F_{MSY}$ for low $M$. beta has less of an effect that $M$, the main effect is on $F$ as beta increases $F_{MSY}$ increases, so that higher fishing levels are sustainable. 
 
 
 - $MSY$ changes with  $M$, highlighting the importance of natural mortality for management decisions.
@@ -81,17 +81,17 @@ iTab=0
 
 ```{r, eval=FALSE}
 # Install CRAN packages
-pkgs_cran <- c("ggplot2", "ggpubr", "GGally", "grid", "plyr", "dplyr", 
+pkgs_cran=c("ggplot2", "ggpubr", "GGally", "grid", "plyr", "dplyr", 
                "reshape", "data.table", "stringr", "foreach", "doParallel")
 
 install.packages(pkgs_cran)
 
 # Install FLR packages from FLR repository
 install.packages(c("FLCore", "FLBRP", "ggplotFL","ss3om"), 
-                repos = "https://flr.r-universe.dev")
+                repos="https://flr.r-universe.dev")
 
 # Install ICES TAF package
-install.packages("TAF", repos = "https://ices-tools-prod.r-universe.dev")
+install.packages("TAF", repos="https://ices-tools-prod.r-universe.dev")
 
 library(remotes)
 
@@ -103,9 +103,9 @@ remotes::install_github("fishfollower/kobe")
 
 # Install Stock Synthesis packages
 remotes::install_github("r4ss/r4ss")
-remotes::install_github("jabbamodel/ss3diags", force = TRUE)
+remotes::install_github("jabbamodel/ss3diags", force=TRUE)
 
-r4ss::get_ss3_exe(dir = model_dir, version = "v3.30.22.1")
+r4ss::get_ss3_exe(dir=model_dir, version="v3.30.22.1")
 ```
 
 ```{r, pkgs}
@@ -114,6 +114,8 @@ require(ggpubr)
 library(GGally)
 library(ggpubr)
 library(grid) 
+
+library(patchwork)
 
 library(plyr)
 library(dplyr)
@@ -130,6 +132,9 @@ library(FLBRP)
 library(ggplotFL)
 library(FLCandy)
 library(kobe)
+
+library(heatmaply)
+library(ggcorrplot)
 
 library(r4ss)
 library(ss3om)
@@ -152,7 +157,7 @@ setwd("c:/active/SCRS-papers/ss-ll/Rmd")
 ```{r, scenarios, echo=TRUE}
 scen=expand.grid(M   =c(seq(0.5,1,length.out=5),seq(1,1.5,length.out=5)[-1]),
                  beta=c(0.5,1, 1.5))
-ctrl="CONTROL.SS"
+ctrl="control.ss"
 
 #path="../data/inputs/00_Model_run_files-20250423T155132Z-001"
 path="../data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files"
@@ -164,7 +169,7 @@ path="../data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files"
 ```{r, run, eval=FALSE}
 cpFiles<-function(sourceDir, destDir) {
     # Remove trailing slashes and asterisks
-    sourceDir <- gsub("[/*]+$", "", sourceDir)
+    sourceDir=gsub("[/*]+$", "", sourceDir)
     
     if (.Platform$OS.type == "windows") {
       cmd=sprintf('xcopy "%s" "%s" /S /I /Y', 
@@ -231,6 +236,100 @@ mScen=foreach(i=seq(dim(scen)[1]),
 stopImplicitCluster()
 ```
 
+```{r, runR0, eval=FALSE}
+ncore=detectCores()-4  
+registerDoParallel(ncore)
+
+# Run
+mScen=foreach(i=rev(seq(dim(scen)[1])), 
+                .packages=c("TAF","r4ss","ss3om","plyr","dplyr","FLCandy")) %dopar% {
+                  
+    beta=scen[i,"beta"]                   
+    M   =scen[i,"M"] 
+    
+    load(file.path(path,M,beta,"ss.RData"))
+    R0=subset(ss$parameters,Label=="SR_LN(R0)")[,"Value"]
+    
+    for (iR0 in seq(0.8,1.2,0.1)[-3]){
+        if (!dir.exists(file.path(path,M,beta,iR0))) mkdir(file.path(path,M,beta,iR0))
+
+        # Copy files, excluding directories
+        cpFiles(file.path(path,"files/*"), file.path(path,M,beta,iR0))
+        file.copy(file.path(path,M,beta,ctrl), file.path(path,M,beta,iR0,ctrl),overwrite=TRUE)
+
+        # Modify control file
+        parlines=SS_parlines(file.path(path,M,beta,iR0,ctrl))
+
+        sln=parlines[grepl("SR_LN\\(R0\\)",c(parlines[,"Label"])),"Linenum"]
+        SS_changepars(dir=file.path(path,M,beta,iR0), ctlfile=ctrl, newctlfile=ctrl,
+                          linenums=seq(sln, sln),newphs=-4,newvals=R0*iR0)
+
+        # Run SS3
+        r4ss::run(file.path(path,M,beta,iR0), exe="ss3.exe", show_in_console=FALSE, skipfinished=FALSE)
+
+        # get SS files
+        ss=FLCandy:::tryIt(SS_output(file.path(path,M,beta,iR0),verbose=FALSE,hidewarn=FALSE,printstat=FALSE))
+        save(ss,file=file.path(path,M,beta,iR0,"ss.RData"))
+  
+        # Create and save FLR objects
+        fls=FLCandy:::tryIt(buildFLSss330(ss))
+        save(fls,file=file.path(path,M,beta,iR0,"fls.RData"))
+  
+        # Save summary data.frames  
+        smry=FLCandy:::tryIt(FLCandy:::smrySS(file.path(path,M,beta,iR0)))
+        save(smry,file=file.path(path,M,beta,iR0,"smry.RData"))
+        }
+    
+    TRUE}
+
+stopImplicitCluster()
+
+dirSS="C:/active/scrs-papers/ss-ll/data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files/0.5/0.5"
+R0=subset(ss$parameters,Label=="SR_LN(R0)")[,"Value"]
+
+seq(0.8,1,2,0.1)
+parlines=SS_parlines(dirSS)
+```
+
+```{r, profile-R0, eval=FALSE}
+path ="../data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files/0.5/0.5"
+ctrl ="control.ss"
+files=c(ctrl,"data.ss","ss3.exe","starter.ss","forecast.ss")
+
+ncore=detectCores()-3  
+registerDoParallel(ncore)
+
+# Run
+mScen=foreach(iR0=seq(0.75,1.25,length.out=17), 
+                .packages=c("TAF","r4ss","ss3om","plyr","dplyr","FLCandy")) %dopar% {
+
+    load(file.path(path,"ss.RData"))
+    R0=subset(ss$parameters,Label=="SR_LN(R0)")[,"Value"]
+    
+    if (!dir.exists(file.path(path,iR0))) mkdir(file.path(path,iR0))
+
+    # Copy files, excluding directories
+    file.copy(file.path(path,files), file.path(path,iR0))
+
+    # Modify control file
+    parlines=SS_parlines(file.path(path,iR0,ctrl))
+
+    sln=parlines[grepl("SR_LN\\(R0\\)",c(parlines[,"Label"])),"Linenum"]
+    SS_changepars(dir=file.path(path,iR0), ctlfile=ctrl, newctlfile=ctrl,
+                          linenums=seq(sln, sln),newphs=-4,newvals=R0*iR0)
+
+    # Run SS3
+    r4ss::run(file.path(path,iR0), exe="ss3.exe", show_in_console=FALSE, skipfinished=FALSE)
+
+    # get SS files
+    ss=FLCandy:::tryIt(SS_output(file.path(path,iR0),verbose=FALSE,hidewarn=FALSE,printstat=FALSE))
+    save(ss,file=file.path(path,iR0,"ss.RData"))
+
+    TRUE}
+
+stopImplicitCluster()
+```
+
 
 ```{r, LL, fig.height=5, fig.width=10}
 scens=FLCandy:::unnest(mlply(scen, function(M,beta) {
@@ -287,7 +386,7 @@ rfs  =subset(eql$refpts,  M%in%c(seq(0.5,1.5,0.25)))
 crv  =subset(eql$curve,   M%in%c(seq(0.5,1.5,0.25)))
 trngl=subset(eql$triangle,M%in%c(seq(0.5,1.5,0.25)))
 p=ggplot(rfs)+
-  facet_grid(beta~M, labeller = labeller(
+  facet_grid(beta~M, labeller=labeller(
      M   =function(x) paste("M *", x),
      beta=function(x) paste("beta =", x)),
      scale="free",space="free")+
@@ -299,7 +398,7 @@ p=ggplot(rfs)+
   scale_x_continuous(labels=scales::comma)+
   scale_y_continuous(labels=scales::comma)+
   # Lines
-  geom_line(data = crv, aes(ssb, yield), color="blue")+
+  geom_line(data=crv, aes(ssb, yield), color="blue")+
   geom_abline(data=rfs, aes(slope=msy/bmsy, intercept=0), col="grey10", linetype=3) +
   # Reference points
   geom_point(aes(x=bmsy, y=msy), shape=21, fill="white", size=3)+
@@ -309,38 +408,57 @@ p=ggplot(rfs)+
   #                   expand=expansion(mult=c(0, 0.05))) +
   scale_color_manual(values= c("blue", "black"),
                     labels= c("Start", "End"),
-                    name  = "Time Period") +
+                    name ="Time Period") +
   labs(title="Production Function",
        x    =expression("Total Biomass (t)"),
        y    =expression("Production (t)"))+
-  theme_minimal(base_size = 16) +
-  theme(panel.grid.minor = element_blank(),
-      strip.background = element_rect(fill = "grey95"),
-      strip.text = element_text(face = "bold"),
-      axis.title = element_text(face = "bold"),
-      plot.title = element_text(hjust = 0.5, face = "bold"),
-      legend.position = "bottom",
+  theme_minimal(base_size=16) +
+  theme(panel.grid.minor=element_blank(),
+      strip.background=element_rect(fill="grey95"),
+      strip.text=element_text(face="bold"),
+      axis.title=element_text(face="bold"),
+      plot.title=element_text(hjust=0.5, face="bold"),
+      legend.position="bottom",
       axis.text.x=element_text(angle=45,hjust=1, size =10,margin=margin(t=10)),
-      panel.grid.major.x = element_line(color = "grey90"), 
-      axis.line = element_line(color = "black"))+
-   coord_cartesian(xlim=c(0,4e3),ylim=c(0,1.5e3), expand = FALSE)
+      panel.grid.major.x=element_line(color="grey90"), 
+      axis.line=element_line(color="black"))+
+   coord_cartesian(xlim=c(0,4e3),ylim=c(0,1.5e3), expand=FALSE)
 p
-# Time series
-p=p+
-  geom_point(data = subset(eql$tseries, year %in% c(min(year), max(year))),
-             aes(ssb, yield/2, color = factor(year)))+
-  geom_point(data = subset(eql$tseries, !(year %in% c(min(year), max(year)))),
-             aes(ssb, yield/2), color="grey10",fill="grey90", shape=21, size=1, stroke=0.2)+
-  geom_path(data=eql$tseries, aes(ssb, yield/2),
-  #            arrow = arrow(length = unit(0.2, "cm"), type="closed",angle=30,ends="last"),
-              linewidth = 0.25,color="grey10")+
-  geom_abline(aes(slope=yield/ssb,intercept=0),
-              data=subset(eql$tseries, year==max(year)),col="red")
- 
 ```
 
 **Figure `r iFig=iFig+1; iFig`** Production Functions 
 
+```{r, pFuncs-2, eval=!FALSE, fig.height=8 ,fig.width=12}
+# Time series
+p+
+  geom_point(data=subset(subset(eql$tseries,M%in%seq(0.5,1.5,0.25)), year %in% c(min(year), max(year))),
+             aes(ssb, yield/2, color=factor(year)))+
+  geom_point(data=subset(subset(eql$tseries,M%in%seq(0.5,1.5,0.25)), !(year %in% c(min(year), max(year)))),
+             aes(ssb, yield/2), color="grey10",fill="grey90", shape=21, size=1, stroke=0.2)+
+  geom_path(data=subset(eql$tseries,M%in%seq(0.5,1.5,0.25)), aes(ssb, yield/2),
+  #            arrow=arrow(length=unit(0.2, "cm"), type="closed",angle=30,ends="last"),
+              linewidth=0.25,color="grey10")+
+  geom_abline(aes(slope=0.5*yield/ssb,intercept=0),
+              data=subset(subset(eql$tseries,M%in%seq(0.5,1.5,0.25)), year==max(year)),col="red")+
+   coord_cartesian(xlim=c(0,4e3),ylim=c(0,3e3), expand=FALSE)
+```
+
+
+**Figure `r iFig=iFig+1; iFig`** Production Functions 
+
+
+```{r, R0}
+R0=mdply(scen, function(M,beta) {
+            load(file.path(path,M,beta,"ss.RData"))
+            subset(ss$parameters,Label=="SR_LN(R0)")[,"Value"]})
+
+ggplot(R0)+
+  geom_line(aes(M,V1,col=ac(beta)))+
+  labs(y=expression(R[0]),
+       colour="beta")
+```
+
+**Figure `r iFig=iFig+1; iFig`**
 
 ```{r}
 eql$refpts=merge(eql$refpts,ddply(eql$curve,.(beta,M), with, data.frame(b0=max(ssb))))
@@ -352,13 +470,13 @@ library(kableExtra)
 
 
 # Summarise the values of b0, msy, bmsy, and r by M and beta
-smry=aggregate(cbind(b0, msy, bmsy, r) ~ M + beta, data = refs, FUN = mean)
+smry=aggregate(cbind(b0, msy, bmsy, r) ~ M + beta, data=refs, FUN=mean)
 
 # Create a formatted table
-kable(smry, caption = "Summary of b0, msy, bmsy, and r by M and beta") %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+kable(smry, caption="Summary of b0, msy, bmsy, and r by M and beta") %>%
+  kable_styling(bootstrap_options=c("striped", "hover", "condensed"), full_width=FALSE)
 
-ggplot(reshape2::melt(refs[,c(1:5,7)],c("M","beta")))+
+p=ggplot(reshape2::melt(refs[,c(1:5,7)],c("M","beta")))+
          geom_line(aes(M,value,col=ac(beta)))+
          facet_wrap(~variable,scale="free")
 ```
@@ -391,7 +509,7 @@ runRetro<-function(i,path,oldsubdir,newsubdir="retros",seed=1224){
       
   FLQuants(dlply(mvls,.(X1), with, as.FLQuant(data.frame(year=year,iter=iter,data=stock))))}
 
-path="P:\rfmo\ices\wkbseabass\ss3\20250129\north"
+path="P:/rfmo/ices/wkbseabass/ss3/20250129/north"
 
 runRetro(i,path,oldsubdir="base",seed=1224){
     
@@ -406,3 +524,397 @@ ggplot(window(flqs,start=2010),aes(x=date,y=data,
 
 ```
 
+
+To compare the profile likelihood curve and the quadratic (Hessian) approximation need to ensure both curves are plotted on the same scale. Specifically, the change in negative log-likelihood ($$\Delta \text{NLL}$$) relative to the minimum value. This is standard practice for likelihood profile diagnostics.
+
+- **Profile likelihood**: plotted as the difference between the negative log-likelihood at each fixed value and the minimum negative log-likelihood (i.e., $$\Delta \text{NLL}=\text{NLL}_i - \text{NLL}_\text{min}$$).
+- **Quadratic approximation**: Centered at the MLE and use the standard error from the Hessian.
+
+
+For each model run (at each fixed $$R_0$$), calculate:
+$$
+\Delta \text{NLL}_i=\text{NLL}_i - \min(\text{NLL})
+$$
+where $$\text{NLL}_i$$ is the negative log-likelihood for the $$i$$th profile point.
+
+For a sequence of $$R_0$$ values ($$x$$), use:
+$$
+\Delta \text{NLL}_\text{quad}(x)=\frac{(x - R_{0,\text{MLE}})^2}{2 \cdot SE^2}
+$$
+where $$R_{0,\text{MLE}}$$ is the MLE and $$SE$$ is the standard error from the Hessian.
+
+
+## **Summary Table**
+
+| Step                | Profile Likelihood                          | Quadratic Approximation                    |
+|---------------------|---------------------------------------------|--------------------------------------------|
+| Y-axis              | $$\Delta \text{NLL}=\text{NLL}_i - \min(\text{NLL})$$ | $$\Delta \text{NLL}=\frac{(R_0 - R_{0,\text{MLE}})^2}{2 SE^2}$$ |
+| Centered at         | Minimum NLL (MLE)                           | MLE                                        |
+| Interpretation      | Empirical likelihood shape                  | Normal approximation from Hessian          |
+
+```{r}
+path="C:/active/scrs-papers/ss-ll/data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files/1/1"
+load(file.path(path,"ss.RData"))
+
+R0se=subset(ss$parameters,Label=="SR_LN(R0)")$Parm_StDev
+R0  =mdply(file.path(path,seq(0.75,1.25,length.out=17),"ss.RData"),function(x){
+            load(x)
+            cbind(hat=subset(ss$parameters,Label=="SR_LN(R0)")$Value,
+                  ll =ss$likelihoods_used[1,"values"])})
+  
+## ll contains the NLLs for each profile point, and hat the corresponding R0 values
+R0 =transform(R0,deltaNLL=ll-min(ll,na.rm=TRUE))
+
+# Quadratic curve
+R0Seq=seq(min(R0$hat), max(R0$hat), length.out=101)
+Curve=(R0Seq-R0$hat[which.min(R0$ll)])^2/(2*R0se^2)
+
+ggplot() +
+  geom_line(data=data.frame(R0=R0Seq, deltaNLL=Curve),
+            aes(x=R0, y=deltaNLL),  color="red", linewidth=1) +
+  geom_point(data=R0,
+             aes(x=hat, y=deltaNLL), color="blue", size=2) +
+  geom_vline(xintercept=R0$hat[which.min(R0$ll)], linetype="dashed") +
+  ylab("Change in negative log-likelihood") +
+  xlab("SR_LN(R0)")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Change in negative log-likelihood from the minimum to ensure the profile and quadratic curves are directly comparable, X-axis: $$R_0$$, Y-axis: $$\Delta \text{NLL}$$ (change in negative log-likelihood from the minimum).
+
+There is a large discrepancy between the profile likelihood points and the Hessian approximation, particularly at the left side of the parameter space (whetre SR_LN(R0) ≈ 4.5). The profile likelihood point is much higher than what the quadratic approximation, indicating strong asymmetry in the likelihood surface.
+
+The Hessian approximation assumes a symmetric, quadratic likelihood surface (corresponding to normally distributed parameter uncertainty). The discrepancy indicates this assumption is violated for SR_LN(R0). Therefore, the standard errors from the Hessian matrix will underestimate the uncertainty of lower values. 
+
+Asymmetry suggests strong non-linearity in how the model responds to changes in R0, which could indicate, model structural issues, R0 is correlated with other parameters, or over-parameterization
+
+The true uncertainty in stock size is likely to be larger than what the Hessian-based confidence intervals would suggest, particularly toward lower stock sizes. While R0 appears identifiable (the likelihood does increase substantially away from the MLE), the asymmetry suggests potential practical non-identifiability issues.
+
+```{r}
+p1=ggplot(ss$Kobe)+geom_line(aes(Yr,B.Bmsy))+xlab("Year")+ylab(expression(SSB/B[MSY]))
+p2=ggplot(ss$Kobe)+geom_line(aes(Yr,F.Fmsy))+xlab("Year")+ylab(expression(F/F[MSY]))
+
+p1/p2
+```
+
+```{r}
+path="C:/active/scrs-papers/ss-ll/data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files/1/1"
+load(file.path(path, "ss.RData"))
+
+# Extract standard error for B/BMSY
+BratioSE=subset(ss$derived_quants, Label=="Bratio_2016")$StdDev
+BratioEst=subset(ss$derived_quants, Label=="Bratio_2016")$Value
+
+# 2. Get profile results across different model runs with fixed R0
+profile=mdply(file.path(path, seq(0.75, 1.25, length.out=17), "ss.RData"), function(x) {
+  load(x)
+  # Get B/BMSY value and total likelihood
+  cbind(
+    R0    =subset(ss$parameters, Label=="SR_LN(R0)")$Value,
+    Bratio=subset(ss$derived_quants, Label=="Bratio_2016")$Value,
+    ll    =ss$likelihoods_used[1, "values"]
+  )
+})
+
+# Calculate delta NLL
+profile=transform(profile, deltaNLL=ll-min(ll,na.rm=TRUE))
+
+# 3. Create quadratic curve based on Hessian SE for comparison
+Bseq=seq(min(profile$Bratio,na.rm=TRUE), max(profile$Bratio,na.rm=TRUE), length.out=101)
+quadCurve=(Bseq-BratioEst)^2/(2*BratioSE^2)
+
+# 4. Plot the comparison
+ggplot() +
+  geom_line(data=data.frame(Bratio=Bseq, deltaNLL=quadCurve),
+            aes(x=Bratio, y=deltaNLL), color="red", linewidth=1) +
+  geom_point(data=profile,
+             aes(x=Bratio, y=deltaNLL), color="blue", size=2) +
+  geom_vline(xintercept=BratioEst, linetype="dashed") +
+  labs(title="Comparison of Uncertainty Methods for B/BMSY",
+       y="Change in negative log-likelihood", 
+       x="B/BMSY") +
+  theme_minimal()
+```
+
+```{r}
+path="C:/active/scrs-papers/ss-ll/data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files/1/1"
+load(file.path(path, "ss.RData"))
+
+# Extract standard error for B/BMSY
+FSE=subset(ss$derived_quants,  Label=="F_2016")$StdDev
+Fhat=subset(ss$derived_quants, Label=="F_2016")$Value
+
+# 2. Get profile results across different model runs with fixed R0
+profile=mdply(file.path(path, seq(0.75, 1.25, length.out=17), "ss.RData"), function(x) {
+  load(x)
+  # Get F/FMSY value and total likelihood
+  cbind(
+    R0=subset(ss$parameters, Label=="SR_LN(R0)")$Value,
+    F =subset(ss$derived_quants, Label=="F_2016")$Value,
+    ll=ss$likelihoods_used[1, "values"])})
+
+# Calculate delta NLL
+profile=transform(profile, deltaNLL=ll-min(ll,na.rm=TRUE))
+
+# Create quadratic curve based on Hessian SE for comparison
+Fseq=seq(min(profile$F,na.rm=TRUE), max(profile$F,na.rm=TRUE), length.out=101)
+quadCurve=(Fseq-Fhat)^2/(2*FSE^2)
+
+# Plot the comparison
+ggplot() +
+  geom_line(data=data.frame(F=Fseq, deltaNLL=quadCurve),
+            aes(x=F, y=deltaNLL), color="red", linewidth=1) +
+  geom_point(data=profile,
+             aes(x=F, y=deltaNLL), color="blue", size=2) +
+  geom_vline(xintercept=Fhat, linetype="dashed") +
+  labs(title="Comparison of Uncertainty Methods for B/BMSY",
+       y="Change in negative log-likelihood", 
+       x="F/FMSY")+
+  theme_minimal()
+```
+
+```{r}
+path="C:/active/scrs-papers/ss-ll/data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files/1/1"
+  
+# Path to your model directory
+covar_file=file.path(path, "covar.sso")
+
+# Read enough lines to find where the matrix starts
+covar_lines=readLines(covar_file, n = 200)
+start_line=grep("active-i", covar_lines)-1
+if(length(start_line) == 0) stop("Could not find 'active-i' in covar.sso")
+
+# Read the covariance matrix from the file
+covar=read.table(covar_file, header = TRUE, skip = start_line)
+
+
+# Filter for parameter-parameter covariances
+covar_par=subset(covar, Par..i=="Par" & Par..j=="Par")
+diag     =subset(covar, Par..i=="Par" & Par..j=="Std")
+
+# Get unique parameter names and matrix size
+param_names_i=unique(covar_par$label.i)
+param_names_j=unique(covar_par$label.j)
+param_names  =c(unique(param_names_i,param_names_j))
+npar=length(diag[,"label.i"])
+
+# Build the covariance matrix
+covmat=matrix(NA, npar, npar, dimnames=list(diag[,"label.i"], diag[,"label.i"]))
+for(i in 1:nrow(covar_par)) {
+  # Adjust these column names to match your actual data
+  rowname=covar_par$label.i[i]
+  colname=covar_par$label.j[i]  # This name may differ in your data
+  value  =covar_par$corr[i]  # Use your actual value column
+  
+  # Only add if names are valid
+  if(!is.na(rowname)&rowname%in%param_names_i && !is.na(colname)&colname%in%param_names_j) 
+       covmat[rowname, colname]=value
+  }
+
+# Symmetrize (in case of rounding asymmetry)
+covmat[upper.tri(covmat)]=t(covmat)[upper.tri(covmat)]
+diag(covmat)=diag[,"corr"]
+
+# Remove NA rows and columns before inverting
+na_rows=apply(covmat, 1, function(x) all(is.na(x)))
+covmat=covmat[!na_rows, !na_rows]
+
+# Check if the matrix is valid before proceeding
+if(nrow(covmat) > 0 && ncol(covmat) > 0) {
+  # Invert to get Hessian and calculate eigenvalues
+  hessian=try(solve(covmat), silent=TRUE)
+  if(!inherits(hessian, "try-error")) {
+    eigenvals=eigen(hessian, symmetric=TRUE)$values
+   # print(eigenvals)
+  } else {
+    print("Matrix inversion failed - check for singularity")
+  }
+} else {
+  print("No valid data found in covariance matrix")
+}
+
+#smaller values indicate better conditioned problems.
+max(abs(eigenvals))/abs(min(abs(eigenvals)))
+```
+
+```{r}
+save(covmat,file="../data/covmat.RData")
+```
+
+
+```{r}
+scen=expand.grid(M   =c(seq(0.5,1,length.out=5),seq(1,1.5,length.out=5)[-1]),
+                 beta=c(0.5,1, 1.5))
+
+#path="../data/inputs/00_Model_run_files-20250423T155132Z-001"
+path="../data/ICCAT_2017_Model_Run_3_SSv330.23.02/00_Model_run_files"
+
+ srr=mdply(scen, function(M,beta) {
+  load(file.path(path,M,beta,"ss.RData"))
+  ss$parameters[c("SR_LN(R0)","SR_surv_zfrac","SR_surv_Beta"),"Value"]})
+
+names(srr)[3:5]=c("r0","z","beta")
+ 
+surv3Parm<-function(S, R0, gamma, beta) {
+  
+  R=(R0*S)/(1+(S/beta)^gamma)
+  
+  return(R)}
+
+
+dat=data.frame(S=seq(0,100)*5,
+               R=surv3Parm(seq(0,100)*5, 250, 0.2, 1))
+ggplot(dat)+geom_line(aes(S,R))
+```
+
+```{r}
+load("../data/covmat.RData")
+
+# Identify highly correlated pairs
+highCor=which(abs(covmat) > 0.7 & 
+                          covmat != 1, arr.ind = TRUE)
+
+# Create a data frame of highly correlated pairs
+highPairs=data.frame(
+  row = rownames(covmat)[highCor[,1]],
+  column = colnames(covmat)[highCor[,2]],
+  correlation = covmat[highCor])
+
+# Sort by absolute correlation
+highPairs=highPairs[order(-abs(highPairs$correlation)),]
+
+
+ggcorrplot(covmat)
+ggcorrplot(covmat[highPairs[,1],highPairs[,2]])
+
+palette = colorRampPalette(c("green", "white", "red"))(20)
+heatmap(x = covmat, col = palette, symm = TRUE)
+```
+
+```{r}
+Original=c(
+    "Early_RecrDev_1985", "Early_RecrDev_1986", "Early_RecrDev_1987",
+    "Early_RecrDev_1988", "Early_RecrDev_1989", "Main_RecrDev_1990",
+    "Main_RecrDev_1991", "Main_RecrDev_1992", "Main_RecrDev_1994",
+    "Main_RecrDev_1995", "Main_RecrDev_1996", "Main_RecrDev_1997",
+    "Main_RecrDev_1998", "Main_RecrDev_1999", "Main_RecrDev_2000",
+    "Main_RecrDev_2001", "Main_RecrDev_2002", "Main_RecrDev_2003",
+    "Main_RecrDev_2004", "Main_RecrDev_2006", "Main_RecrDev_2007",
+    "Main_RecrDev_2008", "Main_RecrDev_2010", "Main_RecrDev_2011",
+    "Main_RecrDev_2012", "Late_RecrDev_2013", "Late_RecrDev_2014",
+    "ForeRecr_2016", "LnQ_base_S1_USA_LL_Log(13)", "LnQ_base_S3_JPN_LL(15)",
+    "LnQ_base_S4_EU_FOR_LL(16)", "LnQ_base_S6_CTP_LL(18)",
+    "Size_DbN_top_logit_F1_EU_LL(1)", "Size_DbN_peak_F1_EU_LL(1)",
+    "Size_DbN_ascend_se_F1_EU_LL(1)", "Size_DbN_top_logit_F2_JPN_LL(2)",
+    "Size_DbN_peak_F2_JPN_LL(2)", "Size_DbN_ascend_se_F2_JPN_LL(2)",
+    "Size_DbN_end_logit_F2_JPN_LL(2)", "SzSel_Fem_Peak_F2_JPN_LL(2)",
+    "SzSel_Fem_Final_F2_JPN_LL(2)", "SzSel_Fem_Scale_F2_JPN_LL(2)",
+    "Size_DbN_top_logit_F3_CTP_LL(3)", "Size_DbN_peak_F3_CTP_LL(3)", 
+    "Size_DbN_ascend_se_F3_CTP_LL(3)", "Size_DbN_end_logit_F3_CTP_LL(3)",
+    "SzSel_Male_Peak_F3_CTP_LL(3)", "SzSel_Male_Final_F3_CTP_LL(3)",
+    "SzSel_Male_Scale_F3_CTP_LL(3)", "Size_DbN_top_logit_F4_USA_LL(4)",
+    "Size_DbN_ascend_se_F4_USA_LL(4)", "Size_DbN_start_logit_F4_USA_LL(4)",
+    "SzSel_Fem_Peak_F4_USA_LL(4)", "SzSel_Fem_Final_F4_USA_LL(4)",
+    "SzSel_Fem_Scale_F4_USA_LL(4)", "SzSel_Fem_Ascend_F4_USA_LL(4)",
+    "SzSel_Fem_Descend_F4_USA_LL(4)", "Size_DbN_top_logit_F5_VEN_LL(5)",
+    "Size_DbN_peak_F5_VEN_LL(5)", "Size_DbN_ascend_se_F5_VEN_LL(5)",
+    "Size_DbN_end_logit_F5_VEN_LL(5)", "SzSel_Fem_Peak_F5_VEN_LL(5)",
+    "SzSel_Fem_Final_F5_VEN_LL(5)", "SzSel_Fem_Scale_F5_VEN_LL(5)",
+    "SzSel_Fem_Ascend_F5_VEN_LL(5)", "SzSel_Fem_Descend_F5_VEN_LL(5)")
+
+Friendly=c(
+    "Early Recruitment Deviation 1985", "Early Recruitment Deviation 1986",
+    "Early Recruitment Deviation 1987", "Early Recruitment Deviation 1988",
+    "Early Recruitment Deviation 1989", "Main Recruitment Deviation 1990",
+    "Main Recruitment Deviation 1991", "Main Recruitment Deviation 1992",
+    "Main Recruitment Deviation 1994", "Main Recruitment Deviation 1995",
+    "Main Recruitment Deviation 1996", "Main Recruitment Deviation 1997", 
+    "Main Recruitment Deviation 1998", "Main Recruitment Deviation 1999",
+    "Main Recruitment Deviation 2000", "Main Recruitment Deviation 2001",
+    "Main Recruitment Deviation 2002", "Main Recruitment Deviation 2003",
+    "Main Recruitment Deviation 2004", "Main Recruitment Deviation 2006", 
+    "Main Recruitment Deviation 2007", "Main Recruitment Deviation 2008",
+    "Main Recruitment Deviation 2010", "Main Recruitment Deviation 2011",
+    "Main Recruitment Deviation 2012", "Late Recruitment Deviation 2013",
+    "Late Recruitment Deviation 2014", "Forecast Recruitment 2016",
+    "Log Catchability USA LL S1", "Log Catchability Japan LL S3",
+    "Log Catchability EU Foreign LL S4", "Log Catchability CTP LL S6",
+    "Top Logit Size Distribution F1 EU LL", "Peak Size Distribution F1 EU LL",
+    "Ascend SE Size Distribution F1 EU LL", 
+    "Top Logit Size Distribution F2 JPN LL",
+    "Peak Size Distribution F2 JPN LL", 
+    "Ascend SE Size Distribution F2 JPN LL",
+    "End Logit Size Distribution F2 JPN LL", 
+    "Female Peak Selectivity F2 JPN LL",
+    "Female Final Selectivity F2 JPN LL", 
+    "Female Scale Selectivity F2 JPN LL",
+    "Top Logit Size Distribution F3 CTP LL", 
+    "Peak Size Distribution F3 CTP LL",
+    "Ascend SE Size Distribution F3 CTP LL", 
+    "End Logit Size Distribution F3 CTP LL",
+    "Male Peak Selectivity F3 CTP LL", 
+    "Male Final Selectivity F3 CTP LL",
+    "Male Scale Selectivity F3 CTP LL", 
+    "Top Logit Size Distribution F4 USA LL",
+    "Ascend SE Size Distribution F4 USA LL", 
+    "Start Logit Size Distribution F4 USA LL",
+    "Female Peak Selectivity F4 USA LL", 
+    "Female Final Selectivity F4 USA LL",
+    "Female Scale Selectivity F4 USA LL", 
+    "Female Ascend Selectivity F4 USA LL",
+    "Female Descend Selectivity F4 USA LL", 
+    "Top Logit Size Distribution F5 VEN LL",
+    "Peak Size Distribution F5 VEN LL", 
+    "Ascend SE Size Distribution F5 VEN LL",
+    "End Logit Size Distribution F5 VEN LL", 
+    "Female Peak Selectivity F5 VEN LL",
+    "Female Final Selectivity F5 VEN LL", 
+    "Female Scale Selectivity F5 VEN LL",
+    "Female Ascend Selectivity F5 VEN LL", 
+    "Female Descend Selectivity F5 VEN LL")
+
+Sex=ifelse(grepl("Fem", Original), "Female",
+              ifelse(grepl("Male", Original), "Male", NA))
+
+Selectivity=ifelse(grepl("Peak", Original, ignore.case = TRUE), "Peak",
+            ifelse(grepl("Descend", Original, ignore.case = TRUE), "Descend",
+            ifelse(grepl("Ascend", Original, ignore.case = TRUE), "Ascend",
+            ifelse(grepl("Final", Original, ignore.case = TRUE), "Final",
+            ifelse(grepl("Scale", Original, ignore.case = TRUE), "Scale",
+            ifelse(grepl("Start", Original, ignore.case = TRUE), "Start",
+            ifelse(grepl("End", Original, ignore.case = TRUE), NA, NA)))))))
+
+Fleet=ifelse(grepl("F[0-9]+_[A-Z]+_LL", Original),
+                regmatches(Original, regexpr("F[0-9]+_[A-Z]+_LL", Original)),
+                NA)
+
+# Assuming Original is already defined
+
+# Identify size-related parameters
+Size=ifelse(grepl("Size", Original, ignore.case = TRUE) |
+                    grepl("DbN", Original, ignore.case = TRUE),
+                    "Size Parameter", NA)
+
+# Identify recruitment parameters and their types
+Recruitment=ifelse(
+  grepl("RecrDev|ForeRecr", Original),"Recruitment Deviation", NA)
+
+Year=as.numeric(sub(".*_(\\d{4}).*", "\\1", Original)) 
+
+
+# Combine with previous variables (example)
+meta=data.frame(
+  Original,
+  Friendly,
+  Sex,
+  Selectivity,
+  Fleet,
+  Recruitment,
+  Year,
+  Size,
+  stringsAsFactors = FALSE)
+```
+
+
+### Next steps
+
+Confidence intervals should be based on the profile likelihood rather than the Hessian approximation. Asymmetry may result from correlations between R0 and other parameters (perhaps steepness or natural mortality)[5].  As this parameter is critical to management advice, consider whether model simplification or alternative parameterisation might improve stability. Check ifor systematic patterns in residuals that might explain the asymmetry in the likelihood profile.

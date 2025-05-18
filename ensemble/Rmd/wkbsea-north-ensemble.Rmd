@@ -1,0 +1,720 @@
+---
+title: "WKBSEABASS North"
+subtitle: "Sensitivity Analysis for M and Steepness"
+author: 
+  L.T. Kell
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{Estimating $F_{MNY}$ for Atlantic Mackerel}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+Likelihood profiles can be used to identify where there are data conflicts and whether fixed parameters are supported by the data and what drives the assessment and the grid the importance for management 
+
+Once the Base Cases is agreed a sensitivity analysis for a grid of M and steepness can be conducted. These parameters are normally fixed in stock assessments, and have a big impact on the estimates of stock status, reference points, and management advice. It is important to see if there is any information in the data to support the choices made as well as the consequences.
+
+
+```{r, path, eval=TRUE}
+path="P:/rfmo/ices/wkbseabass/ss3/20250307/north" 
+setwd(path)
+```
+
+```{r, path2, echo=TRUE, eval=FALSE}
+path="../ss3" 
+setwd(path)
+```
+
+
+```{r, scenarios, echo=TRUE}
+scen=expand.grid(M=seq(0.4,1.2,0.1),
+                 h=c(0.8,  0.9, 0.999))
+ctrl="BassIVVII.ctl"
+```
+
+
+## Methods
+
+### Likehihood Profiles 
+
+Once a base case has been selected, using goodness-of-fit diagnostics a sensitivity analysis can be conducted to determine which datasets, likelihood components and fixed parameters have the biggest effect on estimates of historical and current status relative to reference points. If estimates from alternative plausible models, based on the available evidence and knowledge, fall outside the confidence or credibility intervals of the base case, this suggest that advice based on a single base case may not be robust. In which case an ensemble of models could be run or a variety of Operating Models conditioned as part of an Management Strategy Evaluation (MSE) to evaluate the robustness of advice. 
+
+**Figure 1** shows the likehihood profile and **Figure 2** the likehihood profile by component 
+
+For example, there is seldom information in stock assessment datasets to estimate parameters such as $M$ (natural mortality) and $h$ steepness, and so these have either to be fixed or provided as priors. Therefore, a grid based on a range of $M$ and $h$ was used to rerun the assessment. The  contributions of the various components, (i.e age composition, length composition, survey indices, recruitment deviations, catch data, and priors), to the Likelihood can then be profiled to analyse how each component’s likelihood changes as a function of $M$ and $h$. Larger likelihood values indicate greater influence of an a component, and if varies widely as a parameter is varied this it indicates strong sensitivity to that parameter. If minima in the profiles are found at different values of the fuxed parameters this identifies influential but conflicting components. Likelihood Weights (lambda values) assigned to a component will determines it’s influence on the total likelihood. The stability of estimates, can also be considered by perturbing initial values. 
+
+### Production Functions 
+
+The production functions, Yield vs. Spawning Stock Biomass (SSB) across different values of natural mortality ($M$) and steepness ($s$) are summarised in **Figure 3**. 
+
+The production curves are concave, with a peak at MSY, showing the biomass level that produces MSY, the dashed line that passes through [BMSY, MSY] indicates $F_{MSY}$. If current catches (red point) are above the curve then the biomass isn't being replaced and the stock will decline, alternatively if it is below the curve then production will be greater than removals and so the stock will increase. For a given level of $F$ if there is no process error then then stock will converge to a corresponding point on the production function. For large process error the stock will cycle anti-clockwise round the production function. THe red kline indicates the current level of $F$, and it's intersect with the production function the equilibrium value for the current $F$. The green quadrant shows where the stock is greater than $B_{MSY}$ and $F$< $F+{MSY}$, the red where the stock is less than $B_{MSY}$ and $F$> $F+{MSY}$.  The green lines identify the ICES target region based on 40% of $B_{0}$. $F$ and yield may be greater than the $MSY$ levels if the stock is greater than $B_{MSY}$, as indicated by the orange triangle. If $F$ is greater than the slope at the origin then the stock will collapse.
+
+## Results
+
+### Likelihood profiles 
+
+The likelihood profile as a function of the fixed parameters $M$ (natural mortality) and $h$ steepness,is shown in **Figure 1**, and the relative impacts of the different likelihoods components in **Figure 2**.
+
+The dominant components, i.e. those with largest values, are the age and length compositions. The survey component contributes negatively to the likelihood, but its magnitude is much smaller compared to the composition data sets. The catch, equilibrium catch, and recruitment components make smaller contributions to the log-likelihood, while forecast Recruitment, parameter deviations, and parameter softbounds make negligible contributions. For a steepness of 0.8 and an M 80% of the base case value the likilihood is improved, this suggests that a global minima might not have been found for the base case.  
+
+The log-likelihood  changes slightly with $M$, primarily driven by the Age and Length Composition. The other minor components show less variation with $M$, reflecting their limited sensitivity to this parameter. Therefore the age and length composition contributions are key data sources for parameter estimation, since the small contributions from other components imply they have less influence on model outcomes.  This highlights the importance to the assessment of  the age and length Composition when interpreting and refining the SS3 models.
+
+### Production functions
+
+For lower $M$ values (e.g., $M=0.5$) $B_0$ is higher, and the ratio of $B_{MSY}/B_0$ decreases as $M$ increases. $F_{MSY}$ as indicated by the slope of the dashed also increases with $M$, although $MSY$ only increases slightly. The ICES taget region delimited by the green lines is found within the green $MSY$ quadrant. The stock is only acheiving the ICES targets if $M$ is high, as there is an inverse relationship between $M$ and $F$ so that $Z$ stays relatively constant. The red line denotes current $F$ and is only below $F_{MSY}$ for low $M$. Steepness has less of an effect that $M$, the main effect is on $F$ as steepness increases $F_{MSY}$ increases, so that higher fishing levels are sustainable. 
+
+
+- $MSY$ changes with  $M$, highlighting the importance of natural mortality for management decisions.
+- Length and age composition data are critical for model fitting and dominate likelihood contributions.
+- Recruitment and survey data play smaller roles but may still influence specific aspects of the model.
+  
+
+```{r, knitr, eval=TRUE, echo=FALSE, warning=FALSE, cache=FALSE}
+library(knitr)
+
+opts_chunk$set(comment   =NA, 
+               warning   =FALSE, 
+               message   =FALSE, 
+               error     =FALSE, 
+               echo      =FALSE, 
+               cache     =TRUE, 
+               cache.path="../cache/North-Mh/",
+               fig.path  ="../figs/North-Mh",
+               fig.width =8,
+               fig.height=6,
+               dev       ="png")
+
+iFig=0
+iTab=0
+```
+
+```{r, eval=FALSE}
+# Install CRAN packages
+pkgs_cran <- c("ggplot2", "ggpubr", "GGally", "grid", "plyr", "dplyr", 
+               "reshape", "data.table", "stringr", "foreach", "doParallel")
+
+install.packages(pkgs_cran)
+
+# Install FLR packages from FLR repository
+install.packages(c("FLCore", "FLBRP", "ggplotFL","ss3om"), 
+                repos="https://flr.r-universe.dev")
+
+# Install ICES TAF package
+install.packages("TAF", repos="https://ices-tools-prod.r-universe.dev")
+
+library(remotes)
+
+# Install FLCandy from GitHub
+remotes::install_github("laurieKell/FLCandy")
+
+# Install kobe package
+remotes::install_github("fishfollower/kobe")
+
+# Install Stock Synthesis packages
+remotes::install_github("r4ss/r4ss")
+remotes::install_github("PIFSCstockassessments/ss3om")
+remotes::install_github("jabbamodel/ss3diags", force=TRUE)
+```
+
+```{r, pkgs}
+require(ggplot2)
+require(ggpubr)
+library(GGally)
+library(ggpubr)
+library(grid) 
+
+library(plyr)
+library(dplyr)
+library(reshape)
+
+library(TAF)
+library(data.table)
+
+library(stringr)
+library(gam)
+
+library(FLCore)
+library(FLBRP)
+library(ggplotFL)
+library(FLCandy)
+library(kobe)
+
+library(r4ss)
+library(ss3om)
+library(ss3diags)     
+
+library(foreach)
+library(doParallel)
+
+theme_set(theme_minimal(base_size=12))
+```
+
+
+## Figures
+
+```{r, run, eval=FALSE}
+cpFiles<-function(sourceDir, destDir) {
+    # Remove trailing slashes and asterisks
+    sourceDir <- gsub("[/*]+$", "", sourceDir)
+    
+    if (.Platform$OS.type == "windows") {
+      cmd=sprintf('xcopy "%s" "%s" /S /I /Y', 
+                    sourceDir,
+                    destDir)} else {
+      cmd=sprintf("find '%s' -type f -exec cp {} '%s' \\;",
+                    sourceDir,
+                    destDir)}
+    
+    system(cmd)}
+
+ncore=detectCores()-4  
+registerDoParallel(ncore)
+
+# Run
+mScen=foreach(i=seq(dim(scen)[1]), 
+                .packages=c("TAF","r4ss","ss3om","plyr","dplyr","FLCandy")) %dopar% {
+                  
+    h=scen[i,"h"]                   
+    M=scen[i,"M"] 
+    
+    # Create dirs
+    if (!dir.exists(file.path(path,M)))   mkdir(file.path(path,M))
+    if (!dir.exists(file.path(path,M,h))) mkdir(file.path(path,M,h))
+  
+    # Copy files, excluding directories
+    cpFiles(file.path(path,"files/*"), file.path(path,M,h))
+    
+    # Modify control file
+    parlines=SS_parlines(file.path(path,M,h,ctrl))
+  
+    sln=parlines[grepl("BH_steep",c(parlines[,"Label"])),"Linenum"]
+    SS_changepars(dir=file.path(path,M,h), ctlfile=ctrl, newctlfile=ctrl,linenums=seq(sln, sln),newvals=h)
+  
+    ##mln=parlines[grepl("NatM",    c(parlines[,"Label"])),"Linenum"]
+    ##SS_changepars(dir=file.path(path,M,h), ctlfile=ctrl, newctlfile=ctrl,linenums=seq(mln, mln),newvals=M)
+  
+    # Modify M vector
+    cFl  =scan(file.path(path,M,h,ctrl),what=as.character(),sep="\n")
+    mRow=grep("# natm",tolower(cFl))
+    for (iRow in mRow){
+       mVec =as.numeric(unlist(strsplit(cFl[iRow], "\\s+")))
+       mVec =mVec[!is.na(mVec)]*M
+       cFl[iRow]=paste(mVec,collapse=" ")}
+    cat(cFl,file=file.path(path,M,h,ctrl),sep="\n")
+  
+    # Run SS3
+    r4ss::run(file.path(path,M,h), exe="ss3", show_in_console=FALSE, skipfinished=FALSE)
+  
+    # get SS files
+    ss=FLCandy:::tryIt(SS_output(file.path(path,M,h),verbose=FALSE,hidewarn=FALSE,printstat=FALSE))
+    save(ss,file=file.path(path,M,h,"ss.RData"))
+  
+    # Create and save FLR objects
+    fls=FLCandy:::tryIt(buildFLSss330(ss))
+    save(fls,file=file.path(path,M,h,"fls.RData"))
+  
+    # Save summary data.frames  
+    smry=FLCandy:::tryIt(FLCandy:::smrySS(file.path(path,M,h)))
+    save(smry,file=file.path(path,M,h,"smry.RData"))
+    
+    TRUE}
+
+stopImplicitCluster()
+```
+
+
+```{r, LL, fig.height=5, fig.width=10}
+scens=FLCandy:::unnest(mlply(scen, function(M,h) {
+            load(file.path(path,M,h,"smry.RData"))
+            smry}))
+scens=llply(scens, function(x) cbind(scen[x$Scenario,],x))
+
+ggplot(transform(scens$ll,Steepness=ac(h)))+
+  geom_line(aes(M,ll,col=Steepness),linewidth=1.5)+
+  xlab("M Multiplier")+
+  ylab("Likelihood")+
+  theme(legend.position="bottom")+
+  theme_bw()
+```
+
+**Figure `r iFig=iFig+1; iFig`** Likehihood profile. 
+
+```{r, LL2, fig.height=12,fig.width=10}
+lls=mdply(scen, function(M,h) {
+  load(file.path(path,M,h,"ss.RData"))
+  data.frame(component=dimnames(ss$likelihoods_used)[[1]],
+             ll       =ss$likelihoods_used[,-2])})
+
+ggplot(transform(subset(lls,!(component%in%c("InitEQ_Regime","Crash_Pen"))),
+                 Steepness=ac(h),
+                 component=gsub("_"," ",unique(component))))+
+  geom_line(aes(M,ll,col=Steepness),linewidth=1.5)+
+  facet_wrap(.~component,ncol=2,scale="free")+
+  xlab("M Multiplier")+
+  ylab("Likelihood")+
+  theme_bw()+theme(legend.position="bottom",
+                   strip.text.y.left=element_text(angle=0))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Likehihood profile by component 
+
+```{r, pFuncs, eval=!FALSE, fig.height=8,fig.width=12}
+dat=mlply(with(scen,file.path(path,M,h)),
+               function(x)
+                     tryIt(SS_output(x,verbose=FALSE,hidewarn=FALSE,printstat=FALSE)))
+eql=llply(dat, function(x) tryIt(curveSS(x,maxY=2.5))) 
+eql=Map(function(x) cbind(x, scen[x$Scenario,]), FLCandy:::unnest(eql[!unlist(llply(eql,is.null))]))
+
+b40=ddply(eql$curve, .(M,h), with, {dif=abs(ssb-max(ssb)*0.4)
+                               data.frame(ssb  =max(ssb)*0.4,
+                                          yield=yield[order(dif)][1])})
+b40=rbind.fill(b40[,-4],b40,b40[,-3])
+b40$ssb[  is.na(b40$ssb)]  =Inf
+b40$yield[is.na(b40$yield)]=0
+
+ggplot(eql$refpts)+
+  facet_grid(h~M, labeller=labeller(
+     M=function(x) paste("M ~", x),
+     s=function(x) paste("h =", x)),
+     scale="free",space="free")+
+  # Base layers
+  geom_polygon(data=eql$triangle,aes(x, y),             fill="orange",  alpha=0.5)+
+  geom_rect(aes(xmin=0,    xmax=bmsy,ymin=msy,ymax=Inf),fill="#D55E00", alpha=0.3)+
+  geom_rect(aes(xmin=bmsy, xmax=Inf, ymin=0,  ymax=msy),fill="#009E73", alpha=0.3)+
+  geom_rect(aes(xmin=0,    xmax=bmsy,ymin=0,  ymax=msy),fill="#F0E442", alpha=0.3)+
+  geom_rect(aes(xmin=bmsy, xmax=Inf, ymin=msy,ymax=Inf),fill="#F0E442", alpha=0.3)+
+  coord_cartesian(ylim =c(0,12e3), expand=FALSE)+
+  # Lines
+  geom_line(data=eql$curve, aes(ssb, yield), color="blue")+
+  geom_abline(data=eql$refpts, aes(slope=msy/bmsy, intercept=0), col="grey10", linetype=3)+
+  # Time series
+  geom_point(data=subset(eql$tseries, year %in% c(min(year), max(year))),
+             aes(ssb, yield, color=factor(year)))+
+  geom_point(data=subset(eql$tseries, !(year %in% c(min(year), max(year)))),
+             aes(ssb, yield), color="grey10",fill="grey90", shape=21, size=1, stroke=0.2)+
+  geom_path(data=eql$tseries, aes(ssb, yield),
+  #            arrow=arrow(length=unit(0.2, "cm"), type="closed",angle=30,ends="last"),
+              linewidth=0.25,color="grey10")+
+  # Reference points
+  geom_point(aes(x=bmsy, y=msy), shape=21, fill="white", size=3)+
+  geom_text( aes(x=bmsy, y=msy,  label="MSY"), hjust=-0.2, vjust=-0.2)+
+  geom_path(aes(ssb,yield),col="green",data=b40)+
+  # Scales
+  #scale_x_continuous(labels=scales::comma,breaks=seq(0, 100000,by=20000),
+  #                   expand=expansion(mult=c(0, 0.05)))+
+  scale_y_continuous(labels=scales::comma)+
+  scale_color_manual(values= c("blue", "black"),
+                    labels= c("Start", "End"),
+                    name ="Time Period")+
+  # Labels
+  labs(title="Yield vs SSB",
+       x    =expression("Total Biomass (t)"),
+       y    =expression("Production (t)"))+
+  theme_minimal(base_size=12)+
+  theme(panel.grid.minor=element_blank(),
+      strip.background=element_rect(fill="grey95"),
+      strip.text=element_text(face="bold"),
+      axis.title=element_text(face="bold"),
+      plot.title=element_text(hjust=0.5, face="bold"),
+      legend.position="bottom",
+      axis.text.x=element_text(angle=45,hjust=1, size =10,margin=margin(t=10)),
+      panel.grid.major.x=element_line(color="grey90"), 
+      axis.line=element_line(color="black"))+
+  geom_abline(aes(slope=yield/ssb,intercept=0),
+              data=subset(eql$tseries, year==max(year)),col="red")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Production Functions 
+
+
+```{r, retro, eval=FALSE}
+source("C:/active/FLCandy/R/ss-MVLN.R")
+
+runRetro<-function(i,path,oldsubdir,newsubdir="retros",seed=1224){
+  
+  retro(dir=path,oldsubdir=oldsubdir,newsubdir=newsubdir,years=-i)
+  
+  m_ply(c("retro0",paste("retro",i,sep="-")), function(x) {
+          ss=FLCandy:::tryIt(SS_output(file.path(path,"retro",x),verbose=FALSE,hidewarn=FALSE,printstat=FALSE))
+          save(ss,file=file.path(path,"retro",x,"ss.RData"))})
+  
+  mvls=mdply(c("retro0",paste("retro",i,sep="-")), function(x) {
+           load(file.path(path,"retro",x,"ss.RData"))
+           set.seed(seed) 
+           tryIt(model.frame(mvlnFLQ(ssmvln(ss$CoVar,ss$derived_quants,mc=500)),drop=T))})
+  
+  m_ply(c("retro0",paste("retro",i,sep="-")), function(x) {
+        load(file.path(path,"retro",x,"ss.RData"))
+        fls=FLCandy:::tryIt(buildFLSss330(ss))
+        save(fls,file=file.path(path,"retro",x,"fls.RData"))})
+      
+  FLQuants(dlply(mvls,.(X1), with, as.FLQuant(data.frame(year=year,iter=iter,data=stock))))}
+
+path="P:\rfmo\ices\wkbseabass\ss3\20250129\north"
+
+runRetro(i,path,oldsubdir="base",seed=1224){
+    
+ggplot(window(flqs,start=2010),aes(x=date,y=data,      
+                       colour=qname, fill=qname))+
+  geom_flquantiles(aes(colour=qname, fill=qname), probs=c(.25,.5,.75),alpha=0.5)+
+  geom_flquantiles(aes(colour=qname, fill=qname), probs=c(.1,.5,.9),  alpha=0.2)+
+  geom_hline(aes(yintercept=0.4),col="red")+
+  labs(colour="Retro")+
+  xlab("Year")+ylab(expression(SSB/B[0]))+
+  theme(legend.position="bottom")
+
+```
+
+## Ensemble Modeling Section
+
+Creating an ensemble of stock assessment models using Spence's framework implementing 
+a discrepancy-based approach for combining multiple stock assessment models. 
+This approach goes beyond simple model averaging by explicitly modeling the 
+relationship between model predictions and the true state through discrepancy terms.
+
+Add this section to your R Markdown file after your existing grid analysis sections:
+
+```{r}
+if (!require(mvtnorm)) install.packages("mvtnorm")
+if (!require(rstan)) install.packages("rstan")
+if (!require(tidyverse)) install.packages("tidyverse")
+library(mvtnorm)  # For multivariate normal distributions
+library(rstan)    # For Bayesian modeling 
+library(tidyverse)
+
+# Set Stan options for faster sampling
+options(mc.cores=parallel::detectCores() - 2)
+rstan_options(auto_write=TRUE)
+```
+
+```{r}
+# Extract time series from all assessment models in the grid
+getSS<-function(M,h,path=getwd()) {
+
+  # Load saved SS output
+  load(file.path(path, M, h, "ss.RData"))
+
+  # Extract SSB time series
+  ts=ss$timeseries %>%
+    dplyr::select(Yr, SpawnBio) %>%
+      dplyr::rename(year=Yr, ssb=SpawnBio)
+
+  # Extract uncertainty
+  if ("derived_quants" %in% names(ss)) {
+     sd=ss$derived_quants %>%
+        filter(grepl("^SSB_", Label)) %>%
+          mutate(year=as.numeric(gsub("SSB_", "", Label))) %>%
+            dplyr::select(year, StdDev) %>%
+              dplyr::rename(ssb_sd=StdDev)
+
+    ts=left_join(ts,sd,by="year")
+    } else {
+    # If standard deviation not available, use 10% of SSB as a rough estimate
+    ts$ssb_sd=ts$ssb*0.1}
+
+  ts$M=M
+  ts$h=h
+  
+  return(ts)}
+
+ssOut=list()
+for(i in 1:nrow(scen)) {
+      M=scen[i, "M"]
+      h=scen[i, "h"]
+      ssOut[[paste0("M",M,"_h",h)]]=getSS(M,h,path)}
+
+ssOut=bind_rows(ssOut, .id="modelId")
+ssOut=ssOut %>%
+  mutate(logSSB=log(ssb),
+         logSD=ssb_sd/ssb)  # Delta method for SD on log scale
+
+# Filter to a common time period across all models
+yrs=ssOut %>%
+      group_by(year) %>%
+        dplyr::summarize(count=dplyr::n()) %>%
+          filter(count==nrow(scen)) %>%
+            pull(year)
+
+ssOut=ssOut %>% filter(year %in% yrs)  %>% filter(!is.na(ssb_sd)) 
+```
+
+```{r}
+stanCode<-"
+data {
+  int<lower=1> nObs;         
+  int<lower=1> nYrs;         
+  int<lower=1> nModels;   
+
+  int<lower=1> yearIdx[nObs]; 
+  int<lower=1> modelIdx[nObs];
+
+  vector[nObs] logSSB;        
+  vector<lower=0>[nObs] logSD;
+  
+  real meanLogSSB;           
+}
+
+parameters {
+  // True state (what we're trying to estimate)
+  vector[nYrs] logTrueSSB;
+  
+  // Long-term discrepancy (gamma) - fixed bias for each model
+  vector[nModels] gamma;
+
+  // Shared short-term discrepancy (eta)
+  vector[nYrs] eta;
+  real<lower=-1,upper=1> rhoEta;
+  real<lower=0> sigmaEta;
+
+  // Individual short-term discrepancy (z)
+  matrix[nYrs, nModels] z;
+  vector<lower=-1,upper=1>[nModels] rho_z;
+  vector<lower=0>[nModels] sigma_z;
+}
+
+model {
+  // Informative prior for true SSB centered on observed data
+  logTrueSSB ~ normal(meanLogSSB, 1);
+  
+  // Simple temporal smoothness for true state
+  for (t in 2:nYrs) {
+    logTrueSSB[t] ~ normal(logTrueSSB[t-1], 0.2);
+  }
+  
+  // Priors for discrepancy components - make these tight to avoid overwhelming true state
+  gamma ~ normal(0, 0.5);
+  
+  rhoEta ~ uniform(-0.9, 0.9);
+  sigmaEta ~ exponential(10);  // Tighter prior to prevent large discrepancies
+  eta[1] ~ normal(0, 0.1);
+  
+  for (t in 2:nYrs) {
+    eta[t] ~ normal(rhoEta * eta[t-1], sigmaEta);
+  }
+  
+  rho_z ~ uniform(-0.9, 0.9);
+  sigma_z ~ exponential(10);
+  
+  for (k in 1:nModels) {
+    z[1, k] ~ normal(0, 0.1);
+    for (t in 2:nYrs) {
+      z[t, k] ~ normal(rho_z[k] * z[t-1, k], sigma_z[k]);
+    }
+  }
+  
+  // Likelihood
+  for (i in 1:nObs) {
+    int t = yearIdx[i];
+    int k = modelIdx[i];
+    logSSB[i] ~ normal(logTrueSSB[t] + gamma[k] + eta[t] + z[t, k], logSD[i]);
+  }
+}
+
+generated quantities {
+  vector[nYrs] trueSSB;
+  
+  for (t in 1:nYrs)
+    trueSSB[t] = exp(logTrueSSB[t]);
+}
+
+"
+
+# Write the Stan model to a file
+writeLines(stanCode, file.path(path, "simple_discrepancy_model.stan"))
+
+# Calculate mean of log SSB to use as prior
+meanLogSSB <- mean(ssOut$logSSB)
+
+# Prepare data for Stan
+stan_data<-list(
+  nObs      =nrow(ssOut),
+  nYrs      =length(yrs),
+  nModels   =nrow(scen),
+  
+  yearIdx   =match(ssOut$year, yrs),
+  modelIdx  =as.numeric(factor(ssOut$modelId)),
+  
+  logSSB    =ssOut$logSSB,
+  logSD     =ssOut$logSD,
+  
+  meanLogSSB=meanLogSSB
+)
+
+# Fit the model
+ensembleFit <- stan(
+  file   =file.path(path, "simple_discrepancy_model.stan"),
+  data   =stan_data,
+  iter   =2000,
+  warmup =1000,
+  chains =4,
+  control=list(adapt_delta = 0.95, max_treedepth = 12)  # Increase adapt_delta for stability
+)
+```
+
+```{r}
+posteriors=rstan::extract(ensembleFit)
+
+logTrueSSBSamples=posteriors$logTrueSSB
+    trueSSBSamples=exp(logTrueSSBSamples)
+
+# Calculate posterior summaries for true state
+trueSSBSmry=data.frame(
+        year      =yrs,
+        medianSSB=apply(trueSSBSamples, 2, median),
+        meanSSB  =apply(trueSSBSamples, 2, mean),
+        lower95  =apply(trueSSBSamples, 2, quantile, 0.025),
+        upper95  =apply(trueSSBSamples, 2, quantile, 0.975)
+        )
+
+# Extract discrepancy components
+gammaSamples=posteriors$gamma  # Long-term discrepancy
+etaSamples  =posteriors$eta    # Shared short-term discrepancy
+zSamples    =posteriors$z      # Individual short-term discrepancy
+
+# Summarise discrepancy components
+gammaSmry=data.frame(
+    model=paste0("Model_", 1:stan_data$nModels),
+    M    =scen$M,
+    h    =scen$h,
+    median_gamma=apply(gammaSamples, 2, median),
+    mean_gamma  =apply(gammaSamples, 2, mean),
+    lower95     =apply(gammaSamples, 2, quantile, 0.025),
+    upper95     =apply(gammaSamples, 2, quantile, 0.975))
+
+etaSmry=data.frame(
+    year      =yrs,
+    medianEta=apply(etaSamples, 2, median),
+    meanEta  =apply(etaSamples, 2, mean),
+    lower95  =apply(etaSamples, 2, quantile, 0.025),
+    upper95  =apply(etaSamples, 2, quantile, 0.975))
+```
+
+
+# Plot the ensemble SSB estimates with uncertainty
+
+```{r}
+ggplot(trueSSBSmry,  aes(x=year))+
+    geom_ribbon(aes(ymin=lower95,ymax=upper95), fill="grey70", alpha=0.5)+
+    geom_line(aes(y=medianSSB),linewidth=1)+
+    geom_line(data=ssOut
+              ,aes(x=year, y=ssb, group=modelId, color=as.factor(M), linetype=factor(h)), alpha=0.6)+
+    labs(title   ="Ensemble Stock Assessment: Spawning Stock Biomass",
+         subtitle="Solid line shows ensemble estimate with 95% credible interval",
+         x       ="Year",
+         y       ="SSB",
+         color   ="Natural Mortality (M)",
+         linetype="Steepness of SRR (h)")+
+    theme_minimal()+
+    theme(legend.position="bottom")
+```
+
+```{r}
+# Plot the long-term discrepancy by model
+ggplot(gammaSmry, aes(x=factor(paste0("M=", M, ", h=", h)), y=median_gamma))+
+  geom_bar(stat="identity", fill="steelblue")+
+  geom_errorbar(aes(ymin=lower95, ymax=upper95), width=0.2)+
+  labs(title    ="Long-term Discrepancy by Model (gamma)",
+        subtitle="Error bars show 95% credible intervals",
+        x       ="Model",
+        y       ="Long-term Discrepancy")+
+  theme_minimal()+
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+```
+
+```{r}
+# Plot the shared short-term discrepancy over time
+ggplot(etaSmry, aes(x=year, y=medianEta))+
+    geom_ribbon(aes(ymin=lower95, ymax=upper95), fill="salmon", alpha=0.3)+
+    geom_line(color="salmon", linewidth=1)+
+    labs(title   ="Shared Short-term Discrepancy Over Time (eta)",
+         subtitle="Shared temporal patterns across all models",
+         x       ="Year",
+         y       ="Shared Discrepancy")+
+    theme_minimal()
+```
+
+### Compare the ensemble approach with traditional methods:
+
+```{r}
+# Calculate a simple average of all models
+simple_avg=nModels %>%
+          group_by(year) %>%
+              summarize(ssb     =mean(ssb),
+                        lower95=mean(ssb)-1.96*mean(ssb_sd),
+                        upper95=mean(ssb)+1.96*mean(ssb_sd))
+```
+
+```{r}
+# Calculate likelihood-weighted average (using negative log-likelihood)
+# Convert likelihood to weights
+ll_data=scens$ll %>%
+      mutate(weight=exp(-ll)/sum(exp(-ll)))
+
+# Join with model data
+weighted_avg=nModels %>%
+      left_join(ll_data %>% select(M, h, weight), by=c("M","h")) %>%
+            group_by(year) %>%
+            summarize(
+            ssb=sum(ssb * weight),
+            # Approximated uncertainty for weighted average
+            lower95=sum((ssb-1.96 * ssb_sd) * weight),
+            upper95=sum((ssb+1.96 * ssb_sd) * weight))
+
+# Find the single best model by likelihood
+best_model=ll_data %>% arrange(ll) %>% slice(1)
+    best_model_data=nModels %>%
+      filter(M == best_model$M & h == best_model$h) %>%
+        select(year, ssb, ssb_sd) %>%
+          mutate(lower95=ssb-1.96*ssb_sd,
+                 upper95=ssb+1.96*ssb_sd)
+
+# Combine all for comparison
+comparison_data=bind_rows(
+    mutate(trueSSBSmry, method="Spence Ensemble"),
+      mutate(simple_avg, method="Simple Average", meanSSB=ssb),
+        mutate(weighted_avg, method="Likelihood-Weighted", meanSSB=ssb),
+          mutate(best_model_data, method="Best Single Model", meanSSB=ssb))
+
+# Plot comparison
+ggplot(comparison_data, aes(x=year, y=meanSSB, color=method, fill=method))+
+  geom_ribbon(aes(ymin=lower95, ymax=upper95), alpha=0.2, color=NA)+
+  geom_line(linewidth=1)+
+  labs(title   ="Comparison of Model Ensemble Approaches",
+       subtitle=paste0("Best single model: M=", best_model$M, ", h=", best_model$h),
+       x       ="Year",
+       y       ="SSB",
+       color   ="Method",
+       fill    ="Method")+
+  theme_minimal()+
+  theme(legend.position="bottom")
+```
+
+## Discussion of Implementation
+
+The ensemble approach implemented above follows Spence's framework by:
+
+1. **Modeling discrepancy explicitly**: Rather than simply averaging models or selecting the "best" one, we model the relationship between each assessment and the true (unknown) state.
+
+2. **Decomposing discrepancy into components**:
+   - Long-term discrepancy (γ): Fixed bias for each model
+   - Shared short-term discrepancy (η): Temporal patterns common to all models
+   - Individual short-term discrepancy (z): Model-specific temporal patterns
+
+3. **Modeling temporal structure**: Using AR(1) processes to capture temporal autocorrelation in the discrepancy components.
+
+4. **Propagating uncertainty**: The Bayesian framework properly accounts for uncertainty in all components.
+
+This implementation provides more robust estimates of stock status and reference points by leveraging information from all models while accounting for their structural differences and shared patterns of discrepancy. As demonstrated in Spence's research, this approach often outperforms both single "best" models and traditional weighted averaging approaches.
+
+
+
+
+
+

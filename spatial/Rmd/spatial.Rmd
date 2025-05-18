@@ -1,0 +1,377 @@
+---
+title: "Spatial Indicators"
+subtitle: "ICCAT"
+author: 
+  L.T. Kell
+date: "`r format(Sys.time(),'%d %B,%Y')`"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{Estimating $F_{MNY}$ for Atlantic Mackerel}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+## Summary: Using Spatial Indicators with ICCAT Data for Ecosystem Assessment and BBNJ Alignment
+
+
+- ICCAT’s Ecosystem Approach: ICCAT is moving toward ecosystem-based fisheries management, aligning with international frameworks like the BBNJ Agreement and SEDA-SAP, which emphasize the use of the best available science, spatial management, and resilience-building.
+- Spatial Indicators: Empirical spatial indicators (e.g., Gini, D95, occupancy) are increasingly recognized as valuable proxies for stock status, especially for data-limited stocks, and can describe spatial distribution, aggregation, and occupancy-key.
+
+
+```{r,eval=FALSE,echo=FALSE}
+setwd("C:/active/scrs-papers/spatial/Rmd")
+```
+
+
+```{r, knitr, eval=TRUE, echo=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo=FALSE)
+
+library(knitr)
+
+opts_chunk$set(comment   =NA, 
+               warning   =FALSE, 
+               message   =FALSE, 
+               error     =FALSE, 
+               echo      =FALSE,
+               fig.width =8, 
+               fig.height=6,
+               cache     =TRUE, 
+               fig.path  ="figs/",
+               cache.path="cache/figs/",
+               dev        =c("png"))
+
+iFig=0
+iTab=0
+```
+
+```{r,pkgs}
+require(ggplot2)
+require(ggpubr)
+require(ggplotFL)
+library(ggridges)
+library(ggplot2)
+library(ggh4x)
+library(ggforce)
+library(ggExtra)
+library(ggside)
+
+library(sf)
+library(maps)
+library(viridis)
+library(RColorBrewer)
+
+library(plyr)
+library(dplyr)
+library(reshape)
+library(kableExtra)
+
+library(stringr)
+
+library(readr)
+
+library(kableExtra)
+```
+
+
+### Data Preparation
+
+-   Datasets:
+    -   EFFDIS: Longline fishing effort (hooks) by 5°×5° cell, year, month, flag, gear.
+    -   CATDIS: Catch (tons) by 5°×5° cell, year, trimester, flag, gear, species.
+-   Merging:
+    -   Align by year (or convert month to trimester), grid cell (Lat5/Lon5), flag, gear.
+    -   Calculate CPUE: $\text{CPUE} = \frac{\text{Catch (t)} \times 1000}{\text{Effort (hooks)}}$.
+
+
+```{r}
+effdis=read.csv("P:/rfmo/iccat/data/effdis_ll.1950.2015.csv")
+catdis=read.csv("P:/rfmo/iccat/data/cdis5023-all9sp.csv")
+
+# 1. First, convert month to trimester in the EFFDIS dataset
+effdis$Trimester=ceiling(effdis$month/3)
+
+# 2. Create spatial grid identifiers that match between datasets
+catdis$Lat5=round(catdis$yLat5ctoid/5)*5
+catdis$Lon5=round(catdis$xLon5ctoid/5)*5
+effdis$Lat5=round(effdis$latitude/5)*5
+effdis$Lon5=round(effdis$longitude/5)*5
+
+# 3. Ensure consistent naming conventions
+names(effdis)[names(effdis)=="flagname"]="FlagName"
+names(effdis)[names(effdis)=="year"]="YearC"
+names(effdis)[names(effdis)=="geargrp"]="GearGrp"
+
+# 4. Merge datasets on common fields
+cpue=merge(catdis, effdis,by=c("YearC", "Trimester", "Lat5", "Lon5", "FlagName", "GearGrp"),
+           all=FALSE)
+cpue$stock=paste(cpue$SpeciesCode,cpue$Stock)
+
+# 5. Calculate CPUE (tons per 1000 hooks)
+cpue$cpue=(cpue$Catch_t * 1000)/cpue$hooksEst
+
+iccat<-read.csv("C:/active/scrs-papers/spatial/data/Copy of ICCAT_B_Bmsy_and_F_Fmsy_ratios_forR_v4.csv")
+
+key=c("AT","ATW","ATS","ATN","ATE")
+names(key)=c("Atlantic","West Atlantic","South Atlantic","North Atlantic","East Atlantic")
+
+iccat=transform(iccat,Stock=key[Stock])
+prds =ddply(iccat, .(Year), with, ecdf(Value)(c(0.8,1.2)))
+
+ggplot(prds)+geom_ribbon(aes(Year,ymin=0, ymax=V1),fill="red")+
+             geom_ribbon(aes(Year,ymin=V1,ymax=V2),fill="green")+
+             geom_ribbon(aes(Year,ymin=V2,ymax=1 ),fill="blue")+
+  ylab("State relative to FAO criteria")+
+  scale_x_continuous(limits=c(1950,NA))
+```
+
+```{r}
+# Convert to presence/absence format for rectangle-level occupancy
+presence_data=cpue %>%
+  mutate(presence = ifelse(cpue > 0, 1, 0)) %>%
+  group_by(YearC, stock) %>%
+  summarize(
+    totalRectangles = n(),
+    occupiedRectangles = sum(presence),
+    POPR = occupiedRectangles/totalRectangles  # Similar to paRect() function
+  )
+```
+
+```{r}
+# Calculate Gini index for each species/year
+giniResults=cpue %>%
+  group_by(YearC, stock) %>%
+  group_modify(~{
+    # Sort CPUE values in ascending order
+    sorted_cpue=sort(.x$cpue)
+    n=length(sorted_cpue)
+    
+    # Calculate cumulative proportions
+    cum_prop=cumsum(sorted_cpue)/sum(sorted_cpue)
+    
+    # Calculate Gini index (similar to Gini() function)
+    gini_value=1 - (2 * sum(cum_prop) / n)
+    
+    data.frame(gini = gini_value)
+  })
+
+```
+
+```{r}
+
+# Calculate D95 index (area containing 95% of CPUE)
+d95Results=cpue %>%
+  group_by(YearC, stock) %>%
+  group_modify(~{
+    # Sort CPUE values in descending order
+    sorted_data=.x[order(-.x$cpue),]
+    
+    # Calculate cumulative proportion of CPUE
+    sorted_data$cum_cpue=cumsum(sorted_data$cpue)/sum(sorted_data$cpue)
+    
+    # Find minimum area containing 95% of CPUE
+    d95_value=min(which(sorted_data$cum_cpue >= 0.95))/nrow(sorted_data)
+    
+    data.frame(d95 = d95_value)
+  })
+```
+
+```{r}
+# Calculate Center of Gravity (CoG) and Inertia
+cog_inertia=cpue %>%
+  group_by(YearC, stock) %>%
+  summarize(
+    # Center of Gravity (weighted mean position)
+    cog_lat = weighted.mean(Lat5, w = cpue, na.rm = TRUE),
+    cog_lon = weighted.mean(Lon5, w = cpue, na.rm = TRUE),
+    
+    # Inertia (dispersion around CoG)
+    inertia_lat = weighted.mean((Lat5 - weighted.mean(Lat5, w = cpue, na.rm = TRUE))^2, 
+                                w = cpue, na.rm = TRUE),
+    inertia_lon = weighted.mean((Lon5 - weighted.mean(Lon5, w = cpue, na.rm = TRUE))^2, 
+                                w = cpue, na.rm = TRUE),
+    inertia = inertia_lat + inertia_lon
+  )
+```
+
+```{r}
+# 7. SUMMARIZE BY SPECIES, YEAR, AND LOCATION
+cpueSmry<-cpue %>%
+  group_by(YearC, FlagName, stock, Lat5, Lon5) %>%
+  summarize(
+    total_catch = sum(Catch_t, na.rm = TRUE),
+    total_effort = sum(hooksEst, na.rm = TRUE),
+    cpue = (total_catch * 1000) / total_effort,
+    .groups = "drop"
+  )
+
+# 8. CALCULATE SPATIAL INDICATORS
+
+# 8.1 GINI INDEX CALCULATION
+calculate_gini<-function(values) {
+  # Sort values in ascending order
+  sorted_values=sort(values)
+  n=length(sorted_values)
+  
+  # Calculate cumulative proportions
+  cum_prop=cumsum(sorted_values)/sum(sorted_values)
+  
+  # Calculate Gini index
+  gini_value=1 - (2 * sum(cum_prop) / n)
+  
+  return(gini_value)
+}
+
+# 8.2 D95 INDEX CALCULATION 
+calculate_d95<-function(values) {
+  # Sort values in descending order
+  sorted_data=sort(values, decreasing = TRUE)
+  
+  # Calculate cumulative proportion
+  cum_sum=cumsum(sorted_data)
+  cum_prop=cum_sum / sum(sorted_data)
+  
+  # Find minimum proportion containing 95% of values
+  d95_value=min(which(cum_prop >= 0.95)) / length(sorted_data)
+  
+  return(d95_value)
+}
+
+# 8.3 CENTER OF GRAVITY CALCULATION
+calculate_cog<-function(data) {
+  # Calculate weighted means
+  cog_lat=weighted.mean(data$Lat5, w = data$cpue, na.rm = TRUE)
+  cog_lon=weighted.mean(data$Lon5, w = data$cpue, na.rm = TRUE)
+  
+  return(data.frame(cog_lat = cog_lat, cog_lon = cog_lon))
+}
+
+# 9. APPLY SPATIAL INDICATORS BY SPECIES AND YEAR
+spatial_indicators=cpueSmry %>%
+  group_by(YearC, stock) %>%
+  filter(n() >= 5) %>% # Ensure enough cells for reliable indicators
+  summarize(
+    gini_index = calculate_gini(cpue),
+    d95 = calculate_d95(cpue),
+    cog = list(calculate_cog(cur_data())),
+    n_cells = n(),
+    mean_cpue = mean(cpue, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  tidyr::unnest_wider(cog)
+```
+
+
+------------------------------------------------------------------------
+
+### Results
+
+-   Aggregation Indicators (robust to coarse 5°×5° data):
+    -   Gini Index: Measures how evenly catch/CPUE is distributed across space. Lower values = more aggregation; higher = more uniformity.
+    -   D95: Proportion of area (cells) containing 95% of the catch/CPUE. Lower = high aggregation; higher = more spread.
+-   Other Indicators (less robust with coarse data):
+    -   Occupancy (POPR/POPH): Proportion of cells/hauls with presence; less informative with few cells.
+    -   Center of Gravity: Mean location, can still be used for tracking shifts.
+
+-   Gini & D95:
+    -   High Gini/High D95: Evenly distributed stock, likely healthy or rebuilding.
+    -   Low Gini/Low D95: Highly aggregated, potentially depleted or at risk.
+    -   Trends: Declining Gini/D95 may signal contraction before biomass declines.
+-   Limitations: With 5°×5° data, occupancy and fine-scale dispersion indicators are less reliable; focus on aggregation and location metrics.
+
+```{r, fig.height=16,fig.width=12, eval=FALSE}
+# 10.1 GINI AND D95 TIME SERIES PLOT
+ggplot(spatial_indicators, aes(x = YearC)) +
+  geom_point(aes(y = gini_index, color = "Gini Index"), size = 2) +
+  geom_line(aes(y = gini_index, color = "Gini Index"), size = 1) +
+  geom_point(aes(y = d95, color = "D95"), size = 2) +
+  geom_line(aes(y = d95, color = "D95"), size = 1) +
+  facet_wrap(~stock,ncol=2) +
+  scale_color_manual(values = c("Gini Index" = "#1B9E77", "D95" = "#D95F02")) +
+  labs(
+    title = "Gini Index and D95 Trends by Species",
+    #subtitle = "Higher values indicate more uniform distribution",
+    x = "Year",
+    y = "Indicator Value",
+    color = "Indicator"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "gray90", color = NA),
+    strip.text = element_text(face = "bold"),
+    axis.title = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(size = 11, color = "gray30")
+  )
+```
+
+```{r, fig.height=8,fig.width=10}
+# 10.2 GINI VS D95 SCATTERPLOT WITH SPECIES COMPARISON
+ggplot(spatial_indicators, aes(x = gini_index, y = d95, color = stock)) +
+  geom_point(aes(size = mean_cpue), alpha = 0.7) +
+  scale_color_viridis_d() +
+  labs(
+    title = "Relationship Between Gini Index and D95 by Species",
+    subtitle = "Point size indicates mean CPUE",
+    x = "Gini Index (higher = more aggregated)",
+    y = "D95 (higher = more spread)",
+    color = "Species",
+    size = "Mean CPUE"
+  )+
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    axis.title = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(size = 11, color = "gray30")
+  ) +
+  # Reference lines at median values
+  geom_hline(yintercept = median(spatial_indicators$d95, na.rm = TRUE), 
+             linetype = "dashed", color = "gray50", alpha = 0.7) +
+  geom_vline(xintercept = median(spatial_indicators$gini_index, na.rm = TRUE), 
+             linetype = "dashed", color = "gray50", alpha = 0.7)
+
+# 10.3 CENTER OF GRAVITY MAP VISUALIZATION
+# Create world map background
+world_map=map_data("world")
+```
+
+```{r, fig.height=12,fig.width=12, eval=FALSE}
+# Plot centers of gravity by species over time
+ggplot() +
+  geom_polygon(data=world_map, aes(x=long, y=lat, group=group), 
+               fill="gray90", color="gray70", size=0.2) +
+  geom_point(data=spatial_indicators, 
+             aes(x=cog_lon, y=cog_lat, color=YearC), 
+             size=2, alpha=0.8) +
+  geom_path(data=spatial_indicators, 
+             aes(x=cog_lon, y=cog_lat, color=YearC), 
+             size=.25) +
+  facet_wrap(~stock) +
+  scale_color_viridis_c() +
+  coord_quickmap(xlim=c(-100, 30), ylim=c(-20, 70)) +
+  labs(
+    title="Center of Gravity by Species and Year",
+    subtitle="Color indicates year",
+    x="Longitude",
+    y="Latitude",
+    color="Year"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid=element_blank(),
+    strip.background=element_rect(fill="gray90", color=NA),
+    strip.text=element_text(face="bold"),
+    axis.title=element_text(face="bold"),
+    plot.title=element_text(face="bold", size=14),
+    plot.subtitle=element_text(size=11, color="gray30") )
+
+```

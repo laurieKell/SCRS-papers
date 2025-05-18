@@ -1,0 +1,1738 @@
+---
+title: "SMA-N"
+subtitle: "Figures"
+author: " L Kell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+#output:
+#    pdf_document:
+#    number_sections: false
+#    toc: false
+#    keep_tex: false
+mathjax: TRUE
+output: word_document
+classoption: landscape
+bibliography: bibliography.bib
+vignette: >
+  %\VignetteIndexEntry{JABBA Guidelines}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r, knitr, eval=TRUE, echo=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(knitr)
+
+opts_chunk$set(comment   =NA, 
+               warning   =FALSE, 
+               message   =FALSE, 
+               error     =FALSE, 
+               echo      =FALSE,
+               fig.width =8, 
+               fig.height=4,
+               cache     =TRUE, 
+               cache.path="cache/figs/",
+               fig.path  ="figs/figs-",
+               dev       ="png")
+
+iFig=0
+iTab=0
+```
+
+```{r, lib}
+library(ggplot2)
+library(r4ss)
+library(stringr)
+
+dirMy ="/home/laurence-kell/Desktop/projects/sma-atl/analysis"
+dirRes=file.path(dirMy,"results")
+dirInp=file.path(dirMy,"inputs")
+dirSS =file.path(dirInp,"ss")
+```
+
+
+```{r, priors}
+load(file.path(dirRes,"jbInp.RData"))
+
+pst=FLPar(k=171179.5,r=0.030,
+          psi=0.888,sigma=0.105,
+          hmsy=0.015,bmsy=85589.8,msy=1344.1,
+          b1950k=0.838,b20150k=0.269,
+          b2015bmsy=0.537,h2015hmsy=4.616)
+```
+
+
+```{r, data}
+load(file.path(dirRes,"ss.RData"))
+load(file.path(dirRes,"ts.RData"))
+
+catch<-melt(read.csv(file.path(dirInp,"catch.csv")),id="year")
+names(catch)[2:3]=c("Scenario","catch")
+catch=rbind(transmute(subset(ts,run=="run1"),year=year,catch=catch,Scenario="SS"),
+            transmute(catch,Scenario=Scenario,year=year,catch=catch))
+catch=transform(catch,Scenario=factor(Scenario,levels=c("SS","c1","c2"),
+                                               labels=c("Base Case","C1","C2")))
+catch=rbind(catch,melt(read.csv("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/catchScen.csv"),
+          id="year",variable.name="Scenario",value.name="catch"))
+catch=subset(catch,!is.na(catch))
+catch$Scenario=factor(catch$Scenario,levels=c("Base Case","C1","C2","C3_11","C3_12","C3_13"))
+```
+
+```{r, depletion}
+load(file.path(dirRes,"ts.RData"))
+
+dInitial=ddply(catch,.(Scenario), with, data.frame(minyr=min(year)))
+dInitial=mdply(dInitial,function(Scenario,minyr) ts[ts$year==minyr,c("run","stock")])
+dFinal  =transform(subset(ts,year%in%max(year))[,c("run","year","stock")],maxyr=year)[,-2]
+dpl     =merge(dInitial,dFinal,by="run")[,c(1,2,3,6,4:5)]
+names(dpl)[5:6]=c("initial","final")
+```
+
+
+\newpage
+```{r, catch}
+ggplot(catch)+  
+  geom_line(aes(year,catch,col=Scenario))+
+  theme_bw()+
+  theme(legend.position="bottom")+
+  xlab("Year")+ylab("Catch")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Alternative catch scenarios.
+
+
+```{r, ctc, fig.height=4, fig.width=8}
+load(file.path(dirRes,"ctc.RData"))
+
+ggplot(data=subset(ctc,run=="run1"), aes(x=as.character(year),kill_bio,fill=name))+
+  geom_bar(stat="identity")+
+  theme_bw()+xlab("Year")+ylab("Tonnes")+
+  theme(legend.position="bottom")+
+  scale_x_discrete(breaks=seq(1950,2020,10))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Catch by fleet for working group base case.
+
+
+```{r, len-2, fig.height=8}
+linf=ss[[1]]$Growth_Parameters$Linf
+
+lns=ldply(ss, function(x) x$lendbase)  
+
+lns=mutate(lns, run=paste("run",X1),
+                yr =(Yr%/%10)*10,
+                dec=Yr-yr,
+                Sexes=as.character(Sexes))
+  
+ggplot(lns)+    
+  geom_histogram(aes(Bin,weight=Obs,fill=Sexes),binwidth=5)+
+  geom_vline(aes(xintercept=x,col=Sexes),data=data.frame(x=c(180,275),Sexes=unique(lns$Sexes)))+
+  facet_grid(dec~yr)+
+  xlab("")+ylab("Relative Number")+
+  scale_fill_manual("Gender",  values=c("red","black"),labels=c("Male","Female"))+
+  scale_colour_manual("Gender",values=c("red","black"),labels=c("Male","Female"))+
+  theme_bw()
+```
+
+**Figure `r iFig=iFig+1; iFig`** Length compositions, length at 50% maturity is indicated.
+
+
+```{r series, fig.height=10,fig.width=8}
+library(mpb)
+library(gam)
+
+load(file.path(dirRes,"dgs.RData"))
+
+u=ddply(subset(dgs,!is.na(obs)),.(run,name),
+        transform,year=year,obsStd=diags:::stdz(obs,na.rm=TRUE))
+
+ggplot(with(u,mpb:::scale(x=year,y=obsStd,name=name)))+
+  geom_line( aes(year,hat),col="grey60")+
+  geom_line( aes(year,hat))+
+  geom_line( aes(year,data))+
+  geom_point(aes(year,data))+
+  facet_grid(name~.,scale="free",space="free_x")+
+  theme_bw(14)+theme(legend.position="bottom")+
+  xlab("Year")+ylab("CPUE")
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Time series of CPUE indices, continuous black line is a lowess smother showing the average trend by area (i.e. fitted to year with series as a factor).
+
+
+```{r cpue-correlations, fig.height=8,fig.width=8}
+ggpairs(cast(subset(u,run=="run1"),year~name,value="obs")[,-1],
+        #mapping=aes(color=as.factor(quarter)),
+        #legend = 1,
+        columns = 2:5, 
+  upper=list(continuous=wrap("cor",size=4, hjust=0.5)),
+  lower=list(continuous = wrap(mydas:::my_smooth)),
+  diag=list(continuous="bar"),
+    title = "")+theme_bw(14)+
+  theme(legend.position ="none", 
+       panel.grid.major =element_blank(), 
+       axis.ticks       =element_blank(), 
+       axis.text.x      =element_blank(), 
+       axis.text.y      =element_blank(),
+       panel.border     =element_rect(linetype = 1, colour="black", fill=NA)) 
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Pairwise scatter plots to examoine correlations between Indices.
+
+
+```{r cpue-clusters, fig.height=8,fig.width=8}
+u=cast(u,year~name,value="obs")
+
+cr=cor(u[,-(1:2)],use="pairwise.complete.obs")  
+dimnames(cr)=list(names(u)[-(1:2)],names(u)[-(1:2)])
+cr[is.na(cr)]=0
+corrplot(cr,diag=F,order="hclust",addrect=4)  +          
+             theme(legend.position="bottom")  
+```
+
+**Figure `r iFig=iFig+1; iFig`.** Plot of the correlation matrix for the CPUE indices, blue indicate a positive correlation  and red negative. The order of the indices and the rectangular boxes are chosen based on a hierarchical cluster analysis using a set of dissimilarities for the indices.
+
+```{r ccf, fig.height=8,fig.width=8}
+u=ddply(subset(dgs,!is.na(obs)),.(run,name),
+        transform,year=year,obsStd=diags:::stdz(obs,na.rm=TRUE))
+
+cc=FLife:::my_ccf(FLQuants(dlply(u,.(name),with,as.FLQuant(data.frame(year=year,data=obs)))))
+
+ggplot(cc)+
+  geom_linerange(aes(x=lag,ymin=0,ymax=data))+
+  facet_grid(a~b)+
+  geom_vline(aes(xintercept=0))+
+  theme_bw(14)+
+  ylab("ACF")+xlab("Lag")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Cross correlations between indices, to identify potential lags due to year-class effects.
+
+
+\newpage
+```{r, m, fig.height=5}
+m=melt(read.csv(file.path(dirInp,"enric/m.csv")),id=c("age","sex"))
+names(m)[3:4]=c("model","data")
+ggplot(m)+
+  geom_line(aes(age,data,linetype=model,col=sex))+
+  scale_color_manual(values=c("red","black"))+
+  xlab("Age")+ylab("Natural Mortality")+theme_bw()+
+  theme(legend.position="bottom")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Natural mortality-at-age, showing hypotheses considered by Cortes (SCRS/2019/087).
+
+```{r, len, fig.height=5}
+len=read.csv(file.path(dirInp,"jaime/len.csv"))
+len=melt(len,id=c("age"))
+names(len)[2:3]=c("model","data")
+ggplot(len)+
+  geom_line(aes(age,data,linetype=model))+
+  xlab("Age")+ylab("Length (cm)")+
+  theme_bw(8)+theme(legend.position="bottom")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Length-at-age, hypotheses as summarised by Mejuto et al., (2021)
+
+```{r, m-len, fig.height=4.5}
+load(file.path(dirRes,"flr.RData"))
+load(file.path(dirRes,"lh.RData"))
+
+hoenigFn  <-function(tmax,m1= c(4.899,6.99,4.49,5.20,5.52,4.31,3.42,2.56,4.22)[1],
+                      m2=-c(0.916,1.22,0.94,1.04,1.08,1.01,0.832,0.873,0.982)[1]){ m1*tmax^m2}
+petersenFn<-function(wt,m1=1.92,m2=-0.25){m1*wt^m2}
+gislasonFn<-function(len,k,linf,a=0.55,b=-1.61,c=1.44)  exp(a)*len^b*linf^c*k
+lorenzenFn<-function(wt,a=0.3,b=-0.288) a*wt^b
+
+biol=model.frame(FLQuants(brp[[1]], m  =function(x) m(x), 
+                                    mat=function(x) mat(x), 
+                                    wt =function(x) stock.wt(x), 
+                                    len=function(x) (stock.wt(x)/lh["a",1])^(1/(lh["b",1]))),drop=T)
+biol=transform(biol,lorenzen=lorenzenFn(wt, a=biol[27,"m"]/(lh["a",1]*lh["l50",1]^lh["b",1])^-0.28,b=-0.28))
+biol=merge(biol,data.frame(unit=c("F","M"),k=c(0.087,0.125),linf=c(366,253)))
+biol=transform(biol,gislason=gislasonFn(len,k=k,linf=linf))
+
+names(biol)[3]="SS3"
+ggplot(melt(biol[,c("len","unit","SS3","lorenzen","gislason")],id=c("len","unit")))+
+  geom_line(aes(len,value,col=unit,linetype=variable))+
+  xlab("Length (cm)")+ylab("Natural Mortality")+
+  scale_color_manual(values=c("red","black"))+
+  theme_bw(8)+theme(legend.position="bottom")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Natural mortality-at-length based on the assumptions used in the Stock Synthesis base case (run 1).
+
+
+```{r, fig.height=8}
+load(file.path(dirRes,"flr.RData"))
+
+dat=ldply(brp, function(x) {
+  dat=FLQuants(x,"catch.sel","mat","m","catch.wt")
+  dimnames(dat[[1]])=dimnames(dat[[2]])
+  p=ggplot(dat)
+  p$data=transform(p$data,qname=factor(qname,levels=c("catch.wt","mat","m","catch.sel"),
+                                           labels=c("Mass","Fecundity","M","Selectivity")))})
+dat$Run=factor(dat$.id,levels=c("1","2","3"),labels=c("Run 1","Run 2","Run 3"))
+
+ggplot(dat)+
+   facet_grid(qname~Run,scale="free")+
+   geom_line(aes(age,data,col=unit))+
+   theme_bw()+
+   theme(legend.position="bottom")+
+   xlab("Age")+ylab("")+
+   scale_color_manual("Gender",values=c("red","black"),labels=c("Female","Male"))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Vectors-at-age from the working group Stock Synthesis runs used to estimate per recruit reference points.
+
+
+```{r, data-3}
+load(file.path(dirRes,"ss.RData"))
+load(file.path(dirRes,"dgs.RData"))
+load(file.path(dirRes,"ctc.RData"))
+load(file.path(dirRes,"lbi.RData"))
+```
+
+
+```{r}
+load(file.path(dirRes,"ts.RData"))
+```
+
+```{r, jara}
+load(file.path(dirRes,"u.RData"))
+dgs=ddply(dgs,.(run,name), transform, obs=obs)
+
+jara<-function(x,fit=TRUE){
+  sink(file=tempfile())
+  
+  u =cast(x,year~name,value="obs")
+  names(u)[1]="Yr"
+  se=cast(x,year~name,value="se")
+  names(se)[1]="Yr"
+
+  ja=build_jara(I =u,
+                se=se,
+                variance.weighting="model",
+                model.type = "relative",
+                assessment = "MLS",GL=15)
+  if (!fit) return(ja)
+  
+  ja=fit_jara(ja,do.ppc=T,quickmcmc=T)
+  
+
+  sink()
+  
+  return(ja)}
+
+jas=dlply(dgs,.(run), jara)
+
+save(jas,file=file.path(dirRes,"jas.RData"),compress="xz")
+```
+
+```{r, jara-fits, fig.height=6}
+source('~/Desktop/flr/diags/R/jara-plot.R')
+
+load(file.path(dirRes,"jas.RData"))
+
+ggplot(jaraFits(jas[[1]]))+
+  geom_ribbon(aes(year,ymin=lpp,ymax=upp),fill="grey75")+
+  geom_ribbon(aes(year,ymin=lci,ymax=uci),fill="grey25")+
+  geom_errorbar(aes(year,ymin=obs.lci,ymax=obs.uci))+
+  geom_line(aes(year,mu))+
+  geom_point( aes(year,obs/hat),col="white")+
+  facet_wrap(~name,scale="free_y",ncol=2)+
+  xlab("Year")+ylab("Index")+
+  theme_bw()
+```
+
+**Figure `r iFig=iFig+1; iFig`** Fits to indices using JARA to examine trends, the ribbons show the common trend and the bars the observed indices with their 95% confidence intervals. 
+
+
+```{r, jara-runs, fig.height=8}
+rns=ldply(jas, function(x) x$fits)
+runs=ddply(rns, .(run,name), with, qic(year,residual,chart="i")$data)
+runs=ddply(runs,.(run,name),with, 
+               data.frame(crossings=all(n.crossings>n.crossings.min),
+                          runs     =all(longest.run<longest.run.max)))
+runs=transform(runs,Pass=runs&crossings)
+
+ggplot(rns)+ 
+  geom_hline(aes(yintercept=0))+
+  geom_line(aes(year,residual),position=position_dodge(width=1),col="grey60")+
+  geom_point(aes(year,residual),position=position_dodge(width=1),col="red",lwd=0.5,
+             data=subset(rns,residual<0))+
+  geom_linerange(aes(year,ymin=0,ymax=residual),position=position_dodge(width=1),col="red",lwd=0.5,
+             data=subset(rns,residual<0))+
+  geom_point(aes(year,residual),position=position_dodge(width=1),col="black",lwd=0.5,
+             data=subset(rns,residual>0))+
+  geom_linerange(aes(year,ymin=0,ymax=residual),position=position_dodge(width=1),col="black",lwd=0.5,
+             data=subset(rns,residual>0))+
+  theme(legend.position="bottom")+
+  facet_grid(name~run,scale="free",space="free_x")+
+  theme_bw(14)+
+  theme(legend.position="bottom",strip.text.y=element_text(angle=0),
+                                 strip.text.x=element_text(angle=0),
+                                 axis.text.x=element_text(angle=45, hjust=1))+ 
+  xlab("Year")+ylab("")+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=runs)+
+     scale_fill_manual(values=c("red","green"))+
+     scale_x_continuous(breaks=seq(1950,2010,10))+
+     theme_bw()
+```
+
+**Figure `r iFig=iFig+1; iFig`** Runs tests for the trend analysis.
+
+
+```{r, jara-cor, fig.width=8, fig.height=8, eval=FALSE}
+ggpairs(cast(subset(rns,run=="run1"),year~name,value="residual")[,-1],
+  #mapping = ggplot2::aes(color=run),
+  upper=list(continuous=wrap("cor",size=4, hjust=0.5)),
+  lower=list(continuous = wrap(mydas:::my_smooth)),
+  diag=list(continuous="bar"))+
+  theme_bw()
+
+#**Figure `r iFig=iFig+1; iFig`** Correlations between indices based on residuals.
+```
+
+
+```{r, jabba,eval=FALSE}
+scen=expand.grid(i=seq(dim(dpl)[1]),
+                 r       =c(pst["r"])*c(0.75,1,1.25))
+scen=cbind(dpl[scen$i,],r=scen$r)
+scen=rbind(scen,transform(scen,initial=1,final="heuristic"))
+dat =merge(ddply(scen,.(run,Scenario,r,initial,final), with, catch[catch$Scenario==Scenario,c("year","catch")]),scen)
+#dat=subset(dat,run=="run1"&Scenario=="c1"&r==0.03)
+sink(file=tempfile())
+jcs=dlply(dat, .(run,Scenario,r,initial), with, 
+      jabbaCom(data.frame(year=year,catch=catch),model="Scaheffer",
+               dFinal=as.numeric(final[1]),
+               dInitial=as.numeric(initial[1]),r=r[1]))
+jcs=biodyns(jcs)
+sink()
+
+key=ddply(dat, .(run,Scenario,r,initial), with, 1)[,-5]
+
+save(key,scen,catch,jcs,file=file.path(dirRes,"jcs.RData"),compress="xz")
+```
+
+
+```{r, residuals-lbi, fig.height=10,fig.width=8}
+load(file.path(dirRes,"lbi.RData"))  
+
+dat=melt(lbi[,c(1:4,6,7)],id=c("run","name","sex","year","indicator"))
+lbi$sex=as.character(lbi$sex) 
+ggplot(aes(year,obs,col=sex),data=subset(lbi,run=="run1"&indicator!="lmaxy"))+
+  geom_smooth(se=FALSE,size=.5)+
+  geom_point(size=0.2)+
+  facet_grid(indicator~name,scale="free")+
+  xlab("Year")+ylab("Length")+
+  theme_bw()+
+  theme(legend.position="bottom",
+        axis.text.x=element_text(angle=45, hjust=1))+
+  scale_color_manual("Gender",values=c("red","black",labels=c("Female","Male")))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Length base indicators by fleet derived from the length composition data.
+
+```{r, com-trj, fig.height=6}
+source('~/Desktop/flr/mpb/R/generics.R')
+source('~/Desktop/flr/mpb/R/biodyns.R')
+
+library(mpb)
+load(file.path(dirRes,"jcs.RData"))
+
+jcs=biodyns(jcs) 
+
+dt=ldply(seq(length(jcs)),function(i) cbind(key[i,],as.data.frame(stock(jcs[[i]])/refpts(jcs[[i]])["bmsy"],drop=T)))
+dt=transform(dt, Depletion=ifelse(is.na(as.numeric(dt$initial)),"Heuristic","known"),
+                 r        =as.character(r))
+
+ggplot(dt)+
+  geom_line(aes(year,data,col=Depletion,linetype=r))+
+  geom_hline(aes(yintercept=1),col="red")+
+  facet_grid(Scenario~run)+
+  scale_colour_manual(values=c("red","black"))+
+  xlab("Year")+ylab(expression(B/B[MSY]))+
+  theme_bw()+theme(legend.position="bottom")  
+```
+
+**Figure `r iFig=iFig+1; iFig`** Trends in biomass relative to $B_{MSY}$ from the catch only assessments for the alternative runs and priors for $r$. Depletion were either known, i.e. taken from the SS assessments or based on heuristics.
+
+```{r, com-pfunc, fig.height=7}
+#attributes(jcs)[[2]]$initial[attributes(jcs)[[2]]$initial!="heuristic"]="SS3"
+#attributes(jcs)[[2]]$initial[attributes(jcs)[[2]]$initial=="heuristic"]="Heuristic"
+
+res=ldply(jcs,function(x) {
+           biomass=FLQuant(seq(0,max(params(x)['k']),length.out=101))
+           model.frame(FLQuants(stock=biomass, yield=FLQuant(production(x,biomass))))})
+
+t=ddply(transform(scen[,c("run","Scenario","r","initial")],Scenario=as.character(Scenario)),.(run,Scenario,r,initial), paste,collapse=".")
+t=merge(res,transform(t,.id=V1),all.y=T)
+t=transform(t, initial=ifelse(initial=="heuristic","Heuristic","SS"))
+
+msy=ldply(jcs,function(x)
+         cast(as.data.frame(refpts(x)),iter~refpts,value='data'))
+
+ggplot(t)+
+        geom_line( aes(stock/1000, yield,col=initial,linetype=as.character(r)))+
+        #geom_point(aes(bmsy,  msy,  col=initial),size=2,data=msy) +
+        xlab('Biomass') + ylab('Surplus Production')+
+        facet_grid(run~Scenario)+
+        scale_colour_manual("Initial \nDepletion", values=c("red","black"))+
+        theme_bw()+
+        theme(axis.text.x=element_text(angle=45),legend.position='bottom')
+```
+
+**Figure `r iFig=iFig+1; iFig`** Production functions from catch only assessments.
+
+```{r, data-4, eval=FALSE}
+load(file.path(dirRes,"ss.RData"))
+load(file.path(dirRes,"jcs.RData"))
+
+jbInp=sss2jabba(ss)
+
+pst=FLPar(k=171179.5,r=0.030,
+          psi=0.888,sigma=0.105,
+          hmsy=0.015,bmsy=85589.8,msy=1344.1,
+          b1950k=0.838,b20150k=0.269,
+          b2015bmsy=0.537,h2015hmsy=4.616)
+save(jbInp,pst,file=file.path(dirRes,"jbInp.RData"))
+```
+
+
+```{r, chains, eval=FALSE}
+load(file.path(dirRes,"jbs.RData"))
+
+ggplot(ldply(jbs, function(x) 
+  subset(melt(cbind(iter=seq(dim(x[["pars_posterior"]])[1]),x[["pars_posterior"]]),id="iter"),variable!="m")))+
+         geom_line(aes(iter,value))+
+         facet_grid(variable~run,scale="free")
+
+#**Figure `r iFig=iFig+1; iFig`** Chains.
+```
+
+
+```{r, par-cor, fig.height=10, fig.width=10}
+load(file.path(dirRes,"jbs.RData")) 
+library(ggpomological) 
+pomological_palette <- ggpomological:::pomological_palette
+
+my_diag <- function(data, mapping, ...) {
+  ggplot(data = data, mapping = mapping) + 
+    geom_density(fill = pomological_palette[7],
+                 color = pomological_palette[6])}
+
+my_lower <- function(data, mapping, ...) {
+  ggplot(data = data, mapping = mapping) + 
+    geom_bin2d() +
+    scale_fill_gradient(low  = pomological_palette[4], 
+                        high = pomological_palette[1])}
+
+ggpairs(jbs[[1]]$pars_posterior[,-3],
+        diag = list(continuous = my_diag),
+        lower = list(continuous = my_lower)) + labs(subtitle = "Jabba")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Parameter estimates and correlations for JABBA with SS catch scenario and $r$ prior of 0.03.
+
+```{r, pars, fig.height=10, fig.width=8}
+priors=ldply(jbs,function(x) ldply(x$settings[c("r.pr","K.pr","psi.pr")]))
+names(priors)[3:5]=c("variable","hat","sigma")
+priors$variable=factor(priors$variable,labels=c("K","psi","r"))
+
+priors    =ddply(priors, .(r,run,variable), with, data.frame(value=rnorm(10000,hat,hat*sigma)))
+posteriors=ldply(jbs, function(x) subset(melt(x[["pars_posterior"]]),variable%in%c("r","K","psi")))
+dat=rbind(cbind(what="priors"    ,priors),
+          cbind(what="posteriors",posteriors))
+ggplot(dat)+  
+  geom_histogram(aes(value,fill=what),position="identity",alpha=0.75)+
+  facet_grid(run+r~variable,scale="free")+
+  theme_bw()+
+  scale_fill_manual("Parameters",values=c("red","black"))+ 
+  xlab("Value")+ylab("")+
+  theme(legend.position="bottom",strip.text.y=element_text(angle=0),
+                                 strip.text.x=element_text(angle=90),
+                                 axis.text.x=element_text(angle=45, hjust=1))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Posteriors and priors for JABBA assessments, by $r$ and catch scenario.
+
+\blandscape
+
+```{r, cpue-residual-runs-2, eval=FALSE}
+load(file.path(dirRes,"bds.RData")) 
+
+dat=ldply(bds,diags)
+dat=dat[,!duplicated(names(dat))]
+dat=cbind(ctrl[dat$.id,],dat)
+
+runs=ddply(dat, .(r,run,name), with, qic(year,residual,chart="i")$data)
+runs=ddply(runs,.(r,run,name),with, 
+               data.frame(crossings=all(n.crossings>n.crossings.min),
+                          runs     =all(longest.run<longest.run.max)))
+runs=transform(runs,Pass=runs&crossings)
+
+ggplot(subset(dat,year>=1985))+ 
+  facet_grid(name~run+r,scale="free",space="free_x")+
+  geom_hline(aes(yintercept=0))+
+  geom_line( aes(year,residual),position=position_dodge(width=1),col="grey60")+
+  geom_point(aes(year,residual),position=position_dodge(width=1),col="red",lwd=0.5,
+             data=subset(dat,residual<0))+
+  geom_linerange(aes(year,ymin=0,ymax=residual),position=position_dodge(width=1),col="red",lwd=0.5,
+             data=subset(dat,residual<0))+
+  geom_point(aes(year,residual),position=position_dodge(width=1),col="black",lwd=0.5,
+             data=subset(dat,residual>0))+
+  geom_linerange(aes(year,ymin=0,ymax=residual),position=position_dodge(width=1),col="black",lwd=0.5,
+             data=subset(dat,residual>0))+
+  theme(legend.position="bottom")+
+  theme_bw(14)+
+  theme(legend.position="bottom",strip.text.y=element_text(angle=90),
+                                 strip.text.x=element_text(angle=0),
+                                 axis.text.x=element_text(angle=45, hjust=1))+ 
+  xlab("Year")+ylab("")+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=runs)+
+  scale_fill_manual(values=c("red","green"))+
+  scale_x_continuous(breaks=seq(1985,2010,20))
+
+#**Figure `r iFig=iFig+1; iFig`** Residual runs tests.
+```
+
+
+
+```{r, ts, fig.height=6, fig.width=10}
+load(file.path(dirRes,"bds.RData"))
+
+dat=ldply(bds, function(x)
+as.data.frame(FLQuants(x,stock=function(x) stock(x)/refpts(x)["bmsy"],
+           yield=function(x) catch(x)/refpts(x)["msy"],
+           harvest=function(x) harvest(x)/refpts(x)["fmsy"]),drop=T))
+dat=cbind(attributes(jbs)[[2]][dat$.id,],dat)
+
+ggplot(transform(dat,r=as.character(r)))+
+  geom_hline(aes(yintercept=1),col="red")+
+  geom_line(aes(year,data,col=r))+
+  facet_grid(qname~run,scale="free_y")+
+  xlab("Year")+ylab("")+theme_bw()+theme(legend.position="bottom")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Time series relative to $MSY$ benchmarks for JABBA scenarios.
+
+
+```{r, prod, fig.height=4, fig.width=12}
+bds=biodyns(bds)
+p  =plotProduction(bds)
+dat=cbind(attributes(jbs)[[2]][p$data$.id,],p$data)
+rfs=ldply(bds,function(x) model.frame(refpts(x)))
+rfs=cbind(attributes(jbs)[[2]][rfs$.id,],rfs)
+dat$r=as.character(dat$r)
+rfs$r=as.character(rfs$r)
+ggplot(dat)+
+  geom_line(aes(stock,yield,col=r))+
+  geom_point(aes(bmsy,msy,col=r),data=rfs)+
+  facet_grid(.~run)+
+  theme_bw()+theme(legend.position="bottom")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Production functions for the JABBA scenarios.
+
+```{r, prodF, fig.height=6, fig.width=8, eval=FALSE}
+load(file.path(dirRes,"catch.RData"))
+load(file.path(dirRes,"bds.RData"))
+
+productionFn<-function(b,r,k,p){
+  t1=b*r/p
+  t3=(b/k)^p
+  t1*(1-t3)}
+
+rf=ldply(jbs, function(x) x$refpts[1,])
+curve=ldply(bds,function(x) 
+  data.frame(biomass=seq(0,params(x)["k"],length.out=101),
+             yield=productionFn(seq(0,params(x)["k"],length.out=101),params(x)["r"],params(x)["k"],params(x)["p"])))
+curve=cbind(attributes(jbs)[[2]][curve$.id,],curve)
+
+ts=ldply(bds,function(x) model.frame(FLQuants(x,"catch","stock"),drop=T))
+ts=cbind(attributes(jbs)[[2]][ts$.id,],ts)
+
+ggplot()+
+  geom_polygon(aes(x, y, fill=factor(what)),
+               data=ddply(ldply(jbs, function(x) x$refpts[1,]), .(run,r), with, phase(bmsy,msy,0.4e4)))+
+  scale_fill_manual(values=c("red","green","yellow","orange"))+
+  xlab("Biomass")+ylab("Yield")+
+  facet_grid(r~run)+
+  geom_path(aes(biomass,yield,group=run),data=curve)+
+  geom_path(aes(stock,catch,group=run),data=ts)
+
+#**Figure `r iFig=iFig+1; iFig`** Production functions with trajectories.
+```
+
+
+```{r, pe-2, fig.width=12,fig.height=8, eval=FALSE}
+pe=FLQuants(llply(jbs, function(x)
+  window(as.FLQuant(x$timeseries[,1,"procB"],dimnames=list(year=names(x$timeseries[,1,"procB"]))),start=1981)))
+
+rodFn=FLife:::rodFn
+pg=ldply(pe,rod)
+names(pg)[1]="quant"
+
+p=ggplot(pe)
+p$data=cbind(p$data,attributes(jbs)[[2]][p$data$qname,])
+p$data$r=as.factor(p$data$r)
+p+
+  #geom_polygon(aes(year,data,group=regime),
+  #       fill="lavender",col="blue",
+  #       lwd=.25,data=pg,alpha=.75)+
+  geom_point(aes(year,data))+
+  geom_line(aes(year,data))+
+  facet_grid(r~run)+
+  xlab("Year")+ylab("Process Error")+
+  theme_bw()
+
+#**Figure `r iFig=iFig+1; iFig`** Process error.
+```
+
+
+```{r, cpue-residual-runs, eval=FALSE}
+load(file.path(dirRes,"bds.RData"))
+load(file.path(dirRes,"jbs.RData"))
+
+dat=ldply(bds,function(x) x@diags)
+dat=dat[,!duplicated(names(dat))]
+dat=cbind(ctrl[dat$.id,],dat) 
+
+runs=ddply(dat, .(r,run,name), with, qic(year,residual,chart="i")$data)
+runs=ddply(runs,.(r,run,name),with, 
+               data.frame(crossings=all(n.crossings>n.crossings.min),
+                          runs     =all(longest.run<longest.run.max)))
+runs=transform(runs,Pass=runs&crossings)
+
+ggplot(subset(dat,year>=1985))+ 
+  facet_grid(name~run+r,scale="free",space="free_x")+
+  geom_hline(aes(yintercept=0))+
+  geom_line( aes(year,residual),position=position_dodge(width=1),col="grey60")+
+  geom_point(aes(year,residual),position=position_dodge(width=1),col="red",lwd=0.5,
+             data=subset(dat,residual<0))+
+  geom_linerange(aes(year,ymin=0,ymax=residual),position=position_dodge(width=1),col="red",lwd=0.5,
+             data=subset(dat,residual<0))+
+  geom_point(aes(year,residual),position=position_dodge(width=1),col="black",lwd=0.5,
+             data=subset(dat,residual>0))+
+  geom_linerange(aes(year,ymin=0,ymax=residual),position=position_dodge(width=1),col="black",lwd=0.5,
+             data=subset(dat,residual>0))+
+  theme(legend.position="bottom")+
+  theme_bw(14)+
+  theme(legend.position="bottom",strip.text.y=element_text(angle=90),
+                                 strip.text.x=element_text(angle=0),
+                                 axis.text.x=element_text(angle=45, hjust=1))+ 
+  xlab("Year")+ylab("")+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=runs)+
+  scale_fill_manual(values=c("red","green"))+
+  scale_x_continuous(breaks=seq(1985,2010,20))
+
+#**Figure `r iFig=iFig+1; iFig`** Residual runs tests.
+```
+
+
+
+```{r, pe, fig.width=8,fig.height=6, eval=FALSE}
+pe=FLQuants(llply(jbs, function(x)
+  as.FLQuant(x$timeseries[,1,"procB"],dimnames=list(year=names(x$timeseries[,1,"procB"])))))
+
+rodFn=FLife:::rodFn
+pg=ldply(pe,rod)
+names(pg)[1]="quant"
+
+p=ggplot(pe)
+p$data=cbind(p$data,attributes(jbs)[[2]][p$data$qname,])
+p$data$r=as.factor(p$data$r)
+p+
+  #geom_polygon(aes(year,data,group=regime),
+  #       fill="lavender",col="blue",
+  #       lwd=.25,data=pg,alpha=.75)+
+  geom_point(aes(year,data))+
+  geom_line(aes(year,data))+
+  facet_grid(r~run)+
+  xlab("Year")+ylab("Process Error")+
+  theme_bw()
+
+#**Figure `r iFig=iFig+1; iFig`** Process error. xxxx
+```
+
+
+
+```{r, eval=FALSE}
+pf=plotProduction(bds)$data
+ts=ldply(bds, function(x) model.frame(FLQuants(x,catch=function(x) catch(x),biomass=stock),drop=T))
+
+ggplot(ts)+
+  facet_wrap(~.id)+
+  geom_path(aes(biomass,catch))+
+  geom_path(aes(stock,  yield),data=pf)
+```
+
+```{r,eval=FALSE}
+ggplot(ts)+
+  facet_wrap(~.id)+
+  geom_path(aes(year,biomass,catch))+
+  geom_path(aes(stock,  yield*4),data=pf)
+```
+
+```{r, eval=FALSE}
+source('~/Desktop/flr/diags/R/ss-prd.R')
+
+fl=c("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run1",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run2",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run3",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run1/scenarios/slow",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run2/scenarios/slow",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run3/scenarios/slow",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run1/scenarios/fast",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run2/scenarios/fast",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run3/scenarios/fast")
+smry=smrySS.1(fl)
+
+rfs=cbind(expand.grid(Run=c("Run 1","Run 2","Run 3"),
+                      Scenario=c("Base","Productivity Low","Productivity High")),smry$refpts)[,-3]
+```
+
+```{r}
+## get biological vectors in a data frame
+getB<-function(obj,minage=0){
+  ctrl=str_trim(scan(obj,sep="\n",what=as.character()))
+  ctrl=ctrl[substr(ctrl,1,1)!="#"]
+
+  female=as.numeric(strsplit(ctrl[6],"\\s+")[[1]])
+  male  =as.numeric(strsplit(ctrl[7],"\\s+")[[1]])
+  m=rbind(data.frame(Gender="Female",Age=seq(length(female)),data=female),
+          data.frame(Gender="Male",  Age=seq(length(male)),  data=male))
+  
+  mat=as.numeric(strsplit(ctrl[14],"\\s+")[[1]])
+  mat=rbind(data.frame(Gender="Female",Age=seq(length(mat)),data=mat))
+  
+  grw=mdply(ctrl[20:41], function(x){
+    grw=as.numeric(strsplit(x,"\\s+")[[1]])
+    grw[!is.na(grw)]})[,-1]
+  names(grw)=tolower(c("LO","HI","INIT","PRIOR","PR_type","SD","PHASE","envVar","useDev","devMinyr","devMaxyr","devStddev","Block","BlockFxn"))
+  
+  dmns=c(mdply(ctrl[20:41], function(x){tolower(str_trim(strsplit(x,"\\s+")[[1]][16]))})[,2])
+  
+  if (!any(is.na(dmns))) dimnames(grw)[[1]]=dmns
+  len=rbind(data.frame(Gender="Female",Age=1:30,data=vonB(1:30,FLPar(t0=0,k=grw[3,3],linf=grw[2,3]))),
+            data.frame(Gender="Male",  Age=1:30,data=vonB(1:30,FLPar(t0=0,k=grw[8,3],linf=grw[7,3]))))
+  
+  fec=subset(mat,Gender=="Female")$data
+  a50=seq(30)[(fec-0.5)^2==min((fec-0.5)^2)]
+  l50=subset(mat,Gender=="Female"&Age==a50)$data
+  
+  rtn=rbind.fill(cbind(Quantity="M",        m),
+                 cbind(Quantity="Fecundity",mat),
+                 cbind(Quantity="Length",   len))
+  
+  names(rtn)=c("qname","unit","age","data")
+  
+  rtn$age=rtn$age+minage-min(rtn$age)
+
+  rtn}
+```
+
+```{r, base}
+ctrl=dlply(data.frame(Run=c("run1","run2","run3")), .(Run), with, {
+            rtn=str_trim(scan(file.path(dirSS,Run,"scenarios/control.ss"),sep="\n",what=as.character()))
+            rtn[substr(rtn,1,1)!="#"]}) 
+
+base=mdply(data.frame(Run=c("run1","run2","run3")), function(Run) 
+             getB(file.path(dirSS,Run,"scenarios/control.ss")))
+
+p=ggplot(base)+
+  geom_line(aes(age,data,col=unit))+
+  facet_grid(qname~Run,scale="free")+
+  xlab("Age")+ylab("")+theme_bw()+
+  scale_color_manual("Gender",values=c("Red","Black"))
+```
+
+```{r, fast}
+fast<-function(ctrl){
+  # M
+  ctrl[6]=paste(as.numeric(strsplit(ctrl[6],"\\s+")[[1]])*1.25,collapse=" ")
+  ctrl[7]=paste(as.numeric(strsplit(ctrl[7],"\\s+")[[1]])*1.25,collapse=" ")
+  
+  # Mat
+  mat=as.numeric(strsplit(ctrl[14],"\\s+")[[1]])
+  ctrl[14]=paste(c(mat[-(1:2)],rep(max(mat),2)),collapse=" ")
+  
+  grw=mdply(ctrl[20:41], function(x){
+    grw=as.numeric(strsplit(x,"\\s+")[[1]])
+    grw[!is.na(grw)]})[,-1]
+  
+  names(grw)=tolower(c("LO","HI","INIT","PRIOR","PR_type","SD","PHASE",
+                       "envVar","useDev","devMinyr","devMaxyr","devStddev","Block","BlockFxn"))
+  dimnames(grw)[[1]]=c(mdply(ctrl[20:41], function(x){
+    tolower(str_trim(strsplit(x,"\\s+")[[1]][16]))})[,2])
+  
+  grw[c(2,3,7,8),3]=grw[c(2,3,7,8),3]*1.25
+  
+  ctrl[20:41]=adply(grw,1,paste,collapse=" ")[,dim(grw)[2]+1]
+  
+  ctrl}
+
+m_ply(names(ctrl), function(Run){
+     system2("cp", args=paste(file.path(dirSS,Run,"scenarios","*.ss"),
+                              file.path(dirSS,Run,"scenarios","fast")))
+     cat(fast(ctrl[[Run]]), file=file.path(dirSS,Run,"scenarios","fast","control.ss"),sep="\n")})
+```
+
+
+```{r, slow, eval=FALSE}
+slow<-function(ctrl){
+
+  # M
+  ctrl[6]=paste(as.numeric(strsplit(ctrl[6],"\\s+")[[1]])*0.9,collapse=" ")
+  ctrl[7]=paste(as.numeric(strsplit(ctrl[7],"\\s+")[[1]])*0.9,collapse=" ")
+
+  # Mat
+  mat=as.numeric(strsplit(ctrl[14],"\\s+")[[1]])
+  ctrl[14]=paste(c(rep(0,2),mat[-(length(mat)-0:1)]),collapse=" ")
+
+  # Length
+  grw=mdply(ctrl[20:41], function(x){
+      grw=as.numeric(strsplit(x,"\\s+")[[1]])
+      grw[!is.na(grw)]})[,-1]
+
+  names(grw)=tolower(c("LO","HI","INIT","PRIOR","PR_type","SD","PHASE",
+                       "envVar","useDev","devMinyr","devMaxyr","devStddev","Block","BlockFxn"))
+  dimnames(grw)[[1]]=c(mdply(ctrl[20:41], function(x){
+    tolower(str_trim(strsplit(x,"\\s+")[[1]][16]))})[,2])
+
+  grw[c(2,3,7,8),3]=grw[c(2,3,7,8),3]*0.9
+  ctrl[20:41]=adply(grw,1,paste,collapse=" ")[,dim(grw)[2]+1]
+
+  ctrl}
+
+m_ply(names(ctrl), function(Run){
+     system2("cp", args=paste(file.path(dirSS,Run,"scenarios","*.ss"),
+                              file.path(dirSS,Run,"scenarios","slow")))
+     cat(slow(ctrl[[Run]]), file=file.path(dirSS,Run,"scenarios","slow","control.ss"),sep="\n")})
+```
+
+
+```{r, npac, eval=FALSE}
+npac<-function(ctrl){
+  # Mat
+  mat=as.numeric(strsplit(ctrl[14],"\\s+")[[1]])
+  ctrl[14]=paste(c(mat[-(1:8)],rep(max(mat),8)),collapse=" ")
+
+  npaGrw=data.frame(unit=c("male","female"),
+                    l0   =c(69,69),
+                    linf=c(254.1,318.6),
+                    k   =c(0.174,0.128))
+
+  # Length
+  grw=mdply(ctrl[20:41], function(x){
+  grw=as.numeric(strsplit(x,"\\s+")[[1]])
+  grw[!is.na(grw)]})[,-1]
+
+
+  names(grw)=tolower(c("LO","HI","INIT","PRIOR","PR_type","SD","PHASE",
+                       "envVar","useDev","devMinyr","devMaxyr","devStddev","Block","BlockFxn"))
+  dimnames(grw)[[1]]=c(mdply(ctrl[20:41], function(x){
+  tolower(str_trim(strsplit(x,"\\s+")[[1]][16]))})[,2])
+
+  grw[1,"init"]=npaGrw[2,"l0"]
+  grw[2,"init"]=npaGrw[2,"linf"]
+  grw[3,"init"]=npaGrw[2,"k"]
+  grw[6,"init"]=npaGrw[1,"l0"]
+  grw[7,"init"]=npaGrw[1,"linf"]
+  grw[8,"init"]=npaGrw[1,"k"]
+
+  ctrl[20:41]=adply(grw,1,paste,collapse=" ")[,dim(grw)[2]+1]
+
+  ctrl}
+
+m_ply(names(ctrl), function(Run){
+     system2("cp", args=paste(file.path(dirSS,Run,"scenarios","*.ss"),
+                              file.path(dirSS,Run,"scenarios","npac")))
+     cat(npac(ctrl[[Run]]), file=file.path(dirSS,Run,"scenarios","npac","control.ss"),sep="\n")})
+```
+
+```{r, scenario-plots, fig.height=6}
+scens=expand.grid(Run     =c("run1","run2","run3"),
+                  Scenario=c("slow","fast","npac","base"))
+dat=mdply(scens,
+      function(Run,Scenario) getB(file.path(dirInp,"ss",Run,"scenarios",Scenario,"control.ss")))
+dat$Scenario=factor(dat$Scenario,levels=c("base","slow","fast","npac"),
+                                 labels=c("Base","Low","High","N Pacific"))
+ggplot(dat)+
+  geom_line(aes(age,data,col=unit,linetype=Scenario))+
+  #geom_vline(aes(xintercept=a50),col="blue")+
+  facet_grid(qname~Run,scale="free")+
+  scale_colour_manual(values=c("red","black"))+
+  theme_bw()+theme(legend.position="bottom")+
+  ylab("")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Scenarios for low and high productivity and North Pacific growth and maturity.
+
+```{r, eval=FALSE}
+wd=getwd()
+mdply(scens, function(Run,Scenario) { 
+  setwd(file.path(dirInp,"ss",Run,"scenarios",Scenario))
+  system2("ss3_3.24z")})
+setwd(wd)
+```
+
+```{r, ss-smry, fig.height=8}
+base=SS_output("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run1/scenarios/base",
+               verbose=FALSE,printstats=FALSE,hidewarn=TRUE)
+fast=SS_output("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run1/scenarios/fast",
+               verbose=FALSE,printstats=FALSE,hidewarn=TRUE,forecast=FALSE)
+slow=SS_output("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run1/scenarios/slow",
+               verbose=FALSE,printstats=FALSE,hidewarn=TRUE,forecast=FALSE)
+npac=SS_output("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run1/scenarios/npac",
+               verbose=FALSE,printstats=FALSE,hidewarn=TRUE)
+
+#fast[["flr"]]=readFLomss3("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run1/scenarios/fast")
+
+r1=rbind(cbind(Scenario="Base",             base$equil_yield),
+         cbind(Scenario="Productivity High",fast$equil_yield),
+         cbind(Scenario="Productivity Low", slow$equil_yield),
+         cbind(Scenario="North Pacific",    npac$equil_yield))
+
+base=SS_output("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run2/scenarios/base",
+               verbose=FALSE,printstats=FALSE,hidewarn=TRUE)
+fast=SS_output("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run2/scenarios/fast",
+               verbose=FALSE,printstats=FALSE,hidewarn=TRUE,forecast=FALSE)
+slow=SS_output("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run2/scenarios/slow",
+               verbose=FALSE,printstats=FALSE,hidewarn=TRUE,forecast=FALSE)
+npac=SS_output("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run2/scenarios/npac",
+               verbose=FALSE,printstats=FALSE,hidewarn=TRUE)
+
+r2=rbind(cbind(Scenario="Base",             base$equil_yield),
+         cbind(Scenario="Productivity High",fast$equil_yield),
+         cbind(Scenario="Productivity Low", slow$equil_yield),
+         cbind(Scenario="North Pacific",    npac$equil_yield))
+
+base=SS_output("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run3/scenarios/base",
+               verbose=FALSE,printstats=FALSE,hidewarn=TRUE)
+fast=SS_output("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run3/scenarios/fast",
+               verbose=FALSE,printstats=FALSE,hidewarn=TRUE,forecast=FALSE)
+slow=SS_output("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run3/scenarios/slow",
+               verbose=FALSE,printstats=FALSE,hidewarn=TRUE,forecast=FALSE)
+npac=SS_output("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run3/scenarios/npac",
+               verbose=FALSE,printstats=FALSE,hidewarn=TRUE)
+
+r3=rbind(cbind(Scenario="Base",             base$equil_yield),
+         cbind(Scenario="Productivity High",fast$equil_yield),
+         cbind(Scenario="Productivity Low", slow$equil_yield),
+         cbind(Scenario="North Pacific",    npac$equil_yield))
+
+pfn=rbind(cbind(Run= "Run 1", r1),
+          cbind(Run= "Run 2", r2),
+          cbind(Run= "Run 3", r3))
+
+ggplot(subset(pfn,SSB>0&Catch>0))+
+  facet_grid(Run~.)+
+  geom_vline(aes(xintercept=V1,linetype=Scenario),data=ddply(pfn,.(Run,Scenario), with, 0.2*max(SSB)))+
+  geom_line(aes(SSB,Catch,linetype=Scenario))+
+  theme_bw()+theme(legend.position="bottom")   
+```
+
+**Figure `r iFig=iFig+1; iFig`** Production functions for the low and high productuvity and North Pacific scenarios compared to the WG run, vertical lines are $20\%$ of Virgin Biomass.
+
+```{r, ss}
+library(dplyr)
+source('~/Desktop/flr/diags/R/ss-prd.R')
+
+fl=c("/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run1/scenarios/base",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run2/scenarios/base",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run3/scenarios/base",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run1/scenarios/npac",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run2/scenarios/npac",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run3/scenarios/npac",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run1/scenarios/slow",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run2/scenarios/slow",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run3/scenarios/slow",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run1/scenarios/fast",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run2/scenarios/fast",
+     "/home/laurence-kell/Desktop/projects/sma-atl/analysis/inputs/ss/run3/scenarios/fast")
+smry=smrySS.1(fl,forecast=FALSE)
+ts=cbind(expand.grid(year=unique(smry$ts$year),
+                     Run=c("Run 1","Run 2","Run 3"),
+                     Scenario=c("Base","North Pacific","Productivity Low","Productivity High"))[,-1],smry$ts)
+
+rfs=cbind(expand.grid(Run    =c("Run 1","Run 2","Run 3"),
+                     Scenario=c("Base","North Pacific","Productivity Low","Productivity High")),smry$refpts[1,])
+
+ggplot(merge(ts,rfs))+
+  geom_line( aes(year,ssb/ssbmsy))+
+  geom_hline(aes(yintercept=1),col="red")+
+  facet_grid(Run~Scenario, scale="free")+
+  xlab("Year")+ylab("SSB:BMSY")+
+  theme_bw()
+```
+
+**Figure `r iFig=iFig+1; iFig`** Time series of $SSB:B_{MSY}$ for the Stock Synthesis scenarios.
+
+```{r, eval=FALSE}
+sp=cbind(expand.grid(seq(67),run=c("Run 1","Run 2","Run 3"),
+                     scenario=c("WG","Productivity Low","Productivity High"))[,-1],smry$sp)[,-3]
+pf=cbind(expand.grid(run=c("Run 1","Run 2","Run 3"),
+                     scenario=c("Base","Productivity Low","Productivity High")),smry$pf)[,-3]
+
+productionFn<-function(b,r,k,p){
+  t1=b*r/p
+  t3=(b/k)^p
+  t1*(1-t3)}
+
+1-exp(-0.003)
+
+names(pf)[1:2]=c("Run","Scenario")
+flim=ddply(transform(merge(pf,subset(rfs,quant=="hat"),by=c("Run","Scenario")),r=(1+p)*(1-exp(-fmsy))),
+           .(Run,Scenario), with,
+  data.frame(r=productionFn(0.2*k,r,k,p)/(0.2*k)))
+
+curve=ddply(pf,.(run,scenario), with,
+  data.frame(biomass=seq(0,k,length.out=101),
+             yield  =productionFn(seq(0,k,length.out=101),r,k,p)))
+  
+ggplot(sp)+
+  geom_line( aes(year,sp))+
+  geom_point(aes(year,sp),size=0.4)+
+  facet_grid(run~scenario, scale="free")+
+  xlab("Year")+ylab("Surplus Production")+
+  theme_bw()
+
+#**Figure `r iFig=iFig+1; iFig`** Surplus production v year.
+```
+
+
+```{r, eval=FALSE}
+ts=cbind(expand.grid(year    =seq(min(smry$ts$year),max(smry$ts$year)),
+                     Run     =c("Run 1","Run 2","Run 3"),
+                     Scenario=c("Base","Productivity Low","Productivity High")),smry$ts)[,-c(1,4)]
+dat=melt(transform(ts,harvest=catch/biomass)[,c("Run","Scenario","year","harvest","ssb","catch")],
+     id=c("Run","Scenario","year"))
+
+productionFn<-function(b,r,k,p){
+  t1=b*r/p
+  t3=(b/k)^p
+  t1*(1-t3)}
+
+rf1=cbind(variable="ssb",    subset(rfs,quant=="hat")[,c("Run","Scenario","ssb0","ssbmsy")])
+rf2=cbind(variable="harvest",subset(rfs,quant=="hat")[,c("Run","Scenario","fmsy")])
+rf3=cbind(variable="catch",  subset(rfs,quant=="hat")[,c("Run","Scenario","msy")])
+#rf4=cbind(variable="harvest",flim)
+rf1[,"ssb0"]=rf1[,"ssb0"]*0.2
+
+names(rf1)[4:5]=c("Limit","Target")
+names(rf2)[4]=c("Target")
+names(rf3)[4]=c("Target")
+#names(rf4)[2:4]=c("Run","Scenario","Limit")
+
+rf=rbind(melt(rf1,id=c("Run","Scenario","variable")),
+         melt(rf2,id=c("Run","Scenario","variable")),
+         melt(rf3,id=c("Run","Scenario","variable")))
+         #melt(rf4,id=c("Run","Scenario","variable")))
+
+names(rf)[4]="refpt"
+
+ggplot(subset(dat,variable=="ssb"))+
+  geom_path(aes(year,value))+
+  geom_hline(aes(yintercept=value,col=refpt),data=subset(rf,variable=="ssb"))+
+  facet_grid(Scenario~Run,scale="free")+
+  theme_bw()+xlab("Year")+ylab("SSB")+
+  theme(legend.position="bottom")+
+  scale_color_manual(values=c("red","orange"))
+```
+
+
+```{r, ss-sp-y, eval=FALSE}
+ggplot(sp)+
+  geom_line( aes(biomass,yield*4),data=curve)+
+  geom_line( aes(ssb,catch))+
+  geom_point(aes(ssb,catch),size=0.4)+
+  facet_grid(run~scenario,scale="free")+
+  xlab("Biomass")+ylab("Surplus Production")+
+  theme_bw()
+```
+
+
+\newpage
+```{r, hnd1, fig.height=3,fig.width=8, eval=FALSE}
+load(file.path(dirRes,"retro.RData"))
+
+ret=ldply(retro, function(x) as.data.frame(FLQuants(x,"Stock"=stock,"Harvest Rate"=harvest),drop=T))
+
+ggplot()+
+  geom_line( aes(year,data,group=tail),col="grey",data=subset(ret, year<=tail+1))+
+  geom_point(aes(year,data),shape=21,             data=subset(ret, year==tail))+
+  geom_line( aes(year,data),data=subset(ret,tail==2018))+
+  geom_point(aes(year,data),data=subset(ret,tail==2018))+ 
+  facet_grid(qname~run+r,scale="free")
+
+#**Figure `r iFig=iFig+1; iFig`** Retrospective analysis with projection, i.e. hindcast, for 1 step ahead
+```
+
+
+```{r, xval-model, eval=FALSE}
+ts=ldply(retro,function(x) model.frame(mcf(FLQuants(x,stock=stock,harvest=harvest)),drop=T))
+
+ggplot(subset(ts,tail>=year))+
+  geom_path( aes(year,stock,group=tail),col="grey")+
+  geom_point(aes(year,stock,group=tail),data=subset(ts,tail==year))+
+  geom_path(aes(year,stock,group=tail),data=subset(ts,tail==2018))+
+  facet_grid(run~.)+
+  theme_bw()+xlab("Year")+ylab("SSB")
+
+#**Figure `r iFig=iFig+1; iFig`** One step ahead for model based.
+```
+
+```{r, xval-obs, eval=FALSE}
+load(file.path(dirRes,"jbs.RData"))
+load(file.path(dirRes,"retro.RData"))
+load(file.path(dirRes,"xvl.RData"))
+
+dgs=ldply(retro,function(x) x@diags)
+
+ggplot(subset(dgs,tail>=year))+
+  facet_grid(name~run)+
+  geom_path( aes(year,hat,group=tail),col="grey")+
+  geom_point(aes(year,hat,group=tail),data=subset(dgs,tail==year+1))+
+  geom_path( aes(year,obs,group=tail),data=subset(dgs,tail==2018))+
+  theme_bw()+
+  xlab("Year")+ylab("")
+
+#**Figure `r iFig=iFig+1; iFig`** One step ahead for observations.
+```
+
+
+
+```{r, cpue-residual-runs-pred, eval=FALSE}
+dat=subset(dgs,year+1==tail)
+dat=transform(subset(dgs,year+1==tail),residual=log(obs/hat))
+
+runs=ddply(dat, .(run), with, qic(year,residual,chart="i")$data)
+runs=ddply(runs,.(run),with, 
+               data.frame(crossings=all(n.crossings>n.crossings.min),
+                          runs     =all(longest.run<longest.run.max)))
+runs=transform(runs,Pass=runs&crossings)
+
+ggplot(dat)+ 
+  facet_grid(name~run,scale="free",space="free_x")+
+  geom_hline(aes(yintercept=0))+
+  geom_line( aes(year,residual),position=position_dodge(width=1),col="grey60")+
+  #geom_point(aes(year,residual),position=position_dodge(width=1),col="red",lwd=0.5,
+  #           data=subset(dat,residual<0))+
+  #geom_linerange(aes(year,ymin=0,ymax=residual),position=position_dodge(width=1),col="red",lwd=0.5,
+  #           data=subset(dat,residual<0))+
+  geom_point(aes(year,residual),position=position_dodge(width=1),col="black",lwd=0.5,
+             data=subset(dat,residual>0))+
+  geom_linerange(aes(year,ymin=0,ymax=residual),position=position_dodge(width=1),col="black",lwd=0.5,
+             data=subset(dat,residual>0))+
+  theme(legend.position="bottom")+
+  theme_bw(14)+
+  theme(legend.position="bottom",strip.text.y=element_text(angle=90),
+                                 strip.text.x=element_text(angle=0),
+                                 axis.text.x=element_text(angle=45, hjust=1))+ 
+  xlab("Year")+ylab("")+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=runs)+
+     scale_fill_manual(values=c("red","green"))+
+     scale_x_continuous(breaks=seq(1950,2010,20))
+
+#**Figure `r iFig=iFig+1; iFig`** Prediction residuals runs tests.
+```
+
+```{r, mase-jabba-tab}
+masep<-function(obs,hat,h=1){
+  naive=c(rep(NA,h),obs)[seq(length(obs))]
+  t1=log(obs/hat)
+  t2=log(naive/hat)
+  
+  rsdl1=t1[!is.na(t1*t2)]
+  rsdl2=t2[!is.na(t1*t2)]
+  
+  mase=sum(abs(rsdl1))/sum(abs(rsdl2))
+  p   =dm.test(rsdl1,rsdl2)$p.value
+  data.frame(mase=mase,p=p)}
+```
+
+```{r, mase-jabba, fig.width=8,fig.height=8}
+library(forecast)
+load(file.path(dirRes,"jbInp.RData"))
+load(file.path(dirRes,"catch.RData"))
+
+u=subset(jbInp[[2]],run=="run 1")[,-c(1,8)]
+u=melt(u,id=c("year"))
+names(u)[2:3]=c("name","obs")
+
+ctrl=expand.grid(run=unique(catch$Scenario),r=factor(c(pst["r"])*c(0.75,1,1.5,2)))
+ctrl=transform(expand.grid(i=seq(dim(ctrl)[1]),tail=2006:2015),run=ctrl[i,"run"],r=ctrl[i,"r"])
+
+hyJb=mdply(data.frame(i=seq(dim(ctrl)[1])), 
+  function(i){
+  load(file.path(dirRes,paste("xvl",i,".RData",sep="")))
+  dat=with(ctrl[i,],cbind(tail=tail,run=run,r=r,melt(xvl$cpue.hat[,"mu",])))
+  names(dat)[4:6]=c("year","name","hat")
+  subset(merge(u,dat,by=c("year","name"))[,c("run","r","tail","year","name","obs","hat")],!is.na(obs))})
+names(hyJb)[2:3]=c("Run","Productivity")
+
+maseJb=ddply(subset(subset(hyJb,tail>=year) ,tail==year+1), .(Run,Productivity,name),
+              with, try(masep(obs,hat,h=1)))
+#cast(maseJb,Run+Productivity~name,value="mase")  
+maseJb$Pass=factor(maseJb$mase<1,levels=c(TRUE,FALSE))
+
+lbl=merge(maseJb[,c("Run","Productivity","name","mase","Pass")],ddply(subset(hyJb,year>=1999),.(name), 
+                                                   with, data.frame(x=2003,y=max(obs)*0.95)))
+```
+
+```{r, mase-jb-1, fig.height=6,fig.width=8}
+dat=subset(hyJb,year>2000&name==unique(hyJb$name)[1])
+ggplot()+ 
+  facet_grid(Productivity~Run,scale="free")+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=subset(maseJb,name==unique(hyJb$name)[1]))+
+     scale_fill_manual(values=c("green","red"))+
+  geom_line( aes(year,hat,col=tail,group=tail),data=subset(dat, year<=tail+1))+
+  geom_point(aes(year,hat), shape=21,fill="white",
+             data=subset(dat, year==tail+1))+
+  geom_line( aes(year,obs),col="grey25",data=subset(dat ,tail==2015))+
+  geom_point(aes(year,obs),fill="grey75",shape=21,data=subset(dat,tail==2015&year>2003))+
+  theme_bw()+xlab("Year")+ylab("CPUE")+
+  theme(legend.position="bottom")+ 
+  scale_color_continuous("Tail",breaks=c(2005,2010,2015))+ 
+  geom_label(aes(x=x,y=y,label=as.character(signif(mase,3))),data=subset(lbl,name==unique(hyJb$name)[1]))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Hindcasts for biomass dynamic assessments `r unique(hyJb$name)[1]`; black line and points are the observations, white points are the 1-step ahead estimates from the hindcast in the final year.
+
+
+```{r, mase-jb-2, fig.height=6,fig.width=8}
+dat=subset(hyJb,year>2000&name==unique(hyJb$name)[2])
+ggplot()+ 
+  facet_grid(Productivity~Run,scale="free")+ 
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=subset(maseJb,name==unique(hyJb$name)[2]))+
+     scale_fill_manual(values=c("green","red"))+
+  geom_line( aes(year,hat,col=tail,group=tail),data=subset(dat, year<=tail+1))+
+  geom_point(aes(year,hat), shape=21,fill="white",
+             data=subset(dat, year==tail+1))+
+  geom_line( aes(year,obs),col="grey25",data=subset(dat ,tail==2015))+
+  geom_point(aes(year,obs),fill="grey75",shape=21,data=subset(dat,tail==2015&year>2003))+
+  theme_bw()+xlab("Year")+ylab("CPUE")+
+  theme(legend.position="bottom")+
+  scale_color_continuous("Tail",breaks=c(2005,2010,2015))+ 
+  geom_label(aes(x=x,y=y,label=as.character(signif(mase,3))),data=subset(lbl,name==unique(hyJb$name)[2]))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Hindcasts for biomass dynamic assessments `r unique(hyJb$name)[2]`.
+
+
+```{r, mase-jb-3, fig.height=6,fig.width=8}
+dat=subset(hyJb,year>2000&name==unique(hyJb$name)[3]) 
+ggplot()+  
+  facet_grid(Productivity~Run,scale="free")+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=subset(maseJb,name==unique(hyJb$name)[3]))+
+     scale_fill_manual(values=c("green","red"))+
+  geom_line( aes(year,hat,col=tail,group=tail),data=subset(dat, year<=tail+1))+
+  geom_point(aes(year,hat), shape=21,fill="white",
+             data=subset(dat, year==tail+1))+
+  geom_line( aes(year,obs),col="grey25",data=subset(dat ,tail==2015))+
+  geom_point(aes(year,obs),fill="grey75",shape=21,data=subset(dat,tail==2015&year>2003))+
+  theme_bw()+xlab("Year")+ylab("CPUE")+
+  theme(legend.position="bottom")+
+  scale_color_continuous("Tail",breaks=c(2005,2010,2015))+ 
+  geom_label(aes(x=x,y=y,label=as.character(signif(mase,3))),data=subset(lbl,name==unique(hyJb$name)[3]))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Hindcasts for biomass dynamic assessments `r unique(hyJb$name)[3]`.
+
+
+```{r, mase-jb-4, fig.height=6,fig.width=8}
+dat=subset(hyJb,year>2000&name==unique(hyJb$name)[4]) 
+ggplot()+ 
+  facet_grid(Productivity~Run,scale="free")+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=subset(maseJb,name==unique(hyJb$name)[4]))+
+     scale_fill_manual(values=c("green","red")[2])+
+  geom_line( aes(year,hat,col=tail,group=tail),data=subset(dat, year<=tail+1))+
+  geom_point(aes(year,hat), shape=21,fill="white",
+             data=subset(dat, year==tail+1))+
+  geom_line( aes(year,obs),col="grey25",data=subset(dat ,tail==2015))+
+  geom_point(aes(year,obs),fill="grey75",shape=21,data=subset(dat,tail==2015&year>2003))+
+  theme_bw()+xlab("Year")+ylab("CPUE")+
+  theme(legend.position="bottom")+
+  scale_color_continuous("Tail",breaks=c(2005,2010,2015))+ 
+  geom_label(aes(x=x,y=y,label=as.character(signif(mase,3))),data=subset(lbl,name==unique(hyJb$name)[4]))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Hindcasts for biomass dynamic assessments `r unique(hyJb$name)[4]`.
+
+
+```{r, mase-jb-5, fig.height=6,fig.width=8}
+dat=subset(hyJb,year>2000&name==unique(hyJb$name)[5]) 
+ggplot()+ 
+  facet_grid(Productivity~Run,scale="free")+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=subset(maseJb,name==unique(hyJb$name)[5]))+
+     scale_fill_manual(values=c("green","red"))+
+  geom_line( aes(year,hat,col=tail,group=tail),data=subset(dat, year<=tail+1))+
+  geom_point(aes(year,hat), shape=21,fill="white",
+             data=subset(dat, year==tail+1))+
+  geom_line( aes(year,obs),col="grey25",data=subset(dat ,tail==2015))+
+  geom_point(aes(year,obs),fill="grey75",shape=21,data=subset(dat,tail==2015&year>2003))+
+  theme_bw()+xlab("Year")+ylab("CPUE")+
+  theme(legend.position="bottom")+
+  scale_color_continuous("Tail",breaks=c(2005,2010,2015))+ 
+  geom_label(aes(x=x,y=y,label=as.character(signif(mase,3))),data=subset(lbl,name==unique(hyJb$name)[5]))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Hindcasts for biomass dynamic assessments `r unique(hyJb$name)[5]`.
+
+
+```{r, mase-jb-5-flip, fig.height=6,fig.width=8}
+library(FLash)
+dat=subset(hyJb,year>2000&name==unique(hyJb$name)[5]) 
+ggplot()+ 
+  facet_grid(Run~Productivity,scale="free")+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=subset(maseJb,name==unique(hyJb$name)[5]))+
+     scale_fill_manual(values=c("green","red"))+
+  geom_line( aes(year,hat,col=tail,group=tail),data=subset(dat, year<=tail+1))+
+  geom_point(aes(year,hat), shape=21,fill="white",
+             data=subset(dat, year==tail+1))+
+  geom_line( aes(year,obs),col="grey25",data=subset(dat ,tail==2015))+
+  geom_point(aes(year,obs),fill="grey75",shape=21,data=subset(dat,tail==2015&year>2003))+
+  theme_bw()+xlab("Year")+ylab("CPUE")+
+  theme(legend.position="bottom")+
+  scale_color_continuous("Tail",breaks=c(2005,2010,2015))+ 
+  geom_label(aes(x=x,y=y,label=as.character(signif(mase,3))),data=subset(lbl,name==unique(hyJb$name)[5]))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Hindcasts for biomass dynamic assessments `r unique(hyJb$name)[5]`.
+
+```{r, mase,eval=FALSE}
+library(plyr)
+library(xvl)
+library(doParallel)
+library(foreach)
+
+cl= makeCluster(6)
+registerDoParallel(cl)
+
+xvlss=ddply(scens, .(Run,Scenario), with, {
+  x =file.path(dirSS,Run,"scenarios",Scenario,"data.ss")
+  hy=runHcstYr(x,12:1)
+  save(hy,file=file.path(dirSS,Run,"scenarios",Scenario,"hy.RData"))
+  hy[[2]]})
+
+save(xvlss,file=file.path(dirRes,"xvlss.RData"))
+```
+
+
+```{r, retro, eval=FALSE}
+library(plyr)
+library(xvl)
+library(doParallel)
+library(foreach)
+
+cl= makeCluster(6)
+registerDoParallel(cl)
+
+rtr=dlply(scens, .(Run,Scenario), with, {
+  x=file.path(dirSS,Run,"scenarios",Scenario)
+  rtr=foreach(tail=2003:2014,
+          .combine=rbind,
+          .export      =ls(globalenv()),
+          .packages="r4ss") %dopar%{
+          
+          source('~/Desktop/flr/diags/R/ss-prd.R')
+          source('~/Desktop/flr/diags/R/rxval.R')
+          source('~/Desktop/flr/diags/R/xval.R')
+
+          data.frame(Run=Run,Scenario=Scenario,rval(x,tail))}
+   
+  save(rtr,file=file.path(dirSS,Run,"scenarios",Scenario,"rtr.RData"))
+  rtr})
+
+save(rtr,file=file.path(dirRes,"rtrss.RData"))
+```
+
+
+```{r, mase-ss-tab}
+load(file.path(dirRes,"xvlss.RData"))
+xvlss$Scenario=factor(xvlss$Scenario, levels=c("base","slow","fast","npac"),
+                                      labels=c("Base","Productivity Low","Productivity High","North Pacific"))
+
+mase=ddply(subset(subset(xvlss,tail>=year) ,tail==year+1), .(Run,Scenario,name),
+           with, try(masep(obs,hat,h=1)))
+
+#cast(mase,Run+Productivity~name,value="mase")  
+mase$Pass=factor(mase$mase<1,levels=c(TRUE,FALSE))
+lbl=merge(mase,ddply(subset(xvlss,year>=1999),.(name), with,
+                     data.frame(x=2002,y=max(obs)*1.0,Pass=factor(mase<1,levels=c(TRUE,FALSE)))))
+```
+
+```{r, hy-ss-1, fig.width=8,fig.height=8}
+dat=subset(xvlss,year>2000&tail>=year&name==unique(xvlss$name)[1])
+ggplot(dat)+ 
+  facet_grid(Scenario~Run,scale="free")+
+  geom_line( aes(year,obs), col="grey75",data=subset(dat,tail==2015))+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=subset(mase,name==unique(xvlss$name)[1]))+
+     scale_fill_manual(values=c("green","red"))+ 
+  geom_line(aes(year,hat,group=tail,col=tail))+
+  geom_point(aes(year,hat),shape=21,fill="white",data=subset(dat, year==tail))+
+  geom_line( aes(year,obs), col="grey75",data=subset(dat,tail==2015))+
+  geom_point(aes(year,obs),fill="grey75",shape=21,data=subset(dat,tail==2015&year>2003))+
+  xlab("Year")+ylab("Index")+theme_bw()+theme(legend.position="bottom")+
+  scale_color_continuous("Tail",breaks=c(2005,2010,2015))+ 
+  geom_label(aes(x=x,y=y,label=as.character(signif(mase,3))),data=subset(lbl,name==unique(xvlss$name)[1]))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Hindcasts for Stock Synthesis assessments `r unique(xvlss$name)[1]`
+
+```{r, hy-ss-2, fig.width=8,fig.height=8}
+dat=subset(xvlss,year>2000&tail>=year&name==unique(xvlss$name)[2])
+ggplot(dat)+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=subset(mase,name==unique(xvlss$name)[2]))+
+     scale_fill_manual(values=c("green","red"))+ 
+  geom_line(aes(year,hat,group=tail,col=tail))+
+  geom_point(aes(year,hat),shape=21,fill="white",data=subset(dat, year==tail))+
+  geom_line( aes(year,obs), col="grey75",data=subset(dat,tail==2015))+
+  geom_point(aes(year,obs),fill="grey75",shape=21,data=subset(dat,tail==2015&year>2003))+
+  facet_grid(Scenario~Run,scale="free")+ 
+  xlab("Year")+ylab("Index")+theme_bw()+theme(legend.position="bottom")+
+  scale_color_continuous("Tail",breaks=c(2005,2010,2015))+ 
+  geom_label(aes(x=x,y=y,label=as.character(signif(mase,3))),data=subset(lbl,name==unique(xvlss$name)[2]))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Hindcasts for Stock Synthesis assessments `r unique(xvlss$name)[2]`
+
+```{r, hy-ss-3, fig.width=8,fig.height=8}
+dat=subset(xvlss,year>2000&tail>=year&name==unique(xvlss$name)[3])
+ggplot(dat)+ 
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=subset(mase,name==unique(xvlss$name)[3]))+
+     scale_fill_manual(values=c("green","red")[2])+
+  geom_line(aes(year,hat,group=tail,col=tail))+
+  geom_point(aes(year,hat),shape=21,fill="white",data=subset(dat, year==tail))+
+  geom_line( aes(year,obs), col="grey75",data=subset(dat,tail==2015))+
+  geom_point(aes(year,obs),fill="grey75",shape=21,data=subset(dat,tail==2015&year>2003))+
+  facet_grid(Scenario~Run,scale="free")+  
+  xlab("Year")+ylab("Index")+theme_bw()+theme(legend.position="bottom")+
+  scale_color_continuous("Tail",breaks=c(2005,2010,2015))+ 
+  geom_label(aes(x=x,y=y,label=as.character(signif(mase,3))),data=subset(lbl,name==unique(xvlss$name)[3]))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Hindcasts for Stock Synthesis assessments `r unique(xvlss$name)[3]`
+
+```{r,hy-ss-4, fig.width=8,fig.height=8}
+dat=subset(xvlss,year>2000&tail>=year&name==unique(xvlss$name)[4])
+ggplot(dat)+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=subset(mase,name==unique(xvlss$name)[4]))+
+     scale_fill_manual(values=c("green","red"))+ 
+  geom_line(aes(year,hat,group=tail,col=tail))+
+  geom_point(aes(year,hat),shape=21,fill="white",data=subset(dat, year==tail))+
+  geom_line( aes(year,obs), col="grey75",data=subset(dat,tail==2015))+
+  geom_point(aes(year,obs),fill="grey75",shape=21,data=subset(dat,tail==2015&year>2003))+
+  facet_grid(Scenario~Run,scale="free")+
+  xlab("Year")+ylab("Index")+theme_bw()+theme(legend.position="bottom")+
+  scale_color_continuous("Tail",breaks=c(2005,2010,2015))+ 
+  geom_label(aes(x=x,y=y,label=as.character(signif(mase,3))),data=subset(lbl,name==unique(xvlss$name)[4]))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Hindcasts for Stock Synthesis assessments `r unique(xvlss$name)[4]`
+
+```{r, hy-ss-5, fig.width=8,fig.height=8}
+dat=subset(xvlss,year>2000&tail>=year&name==unique(xvlss$name)[5])
+ggplot(dat)+
+  geom_rect(aes(fill=Pass), xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, alpha=0.25,
+            data=subset(mase,name==unique(xvlss$name)[5]))+
+     scale_fill_manual(values=c("green","red"))+ 
+  geom_line(aes(year,hat,group=tail,col=tail))+
+  geom_point(aes(year,hat),shape=21,fill="white",data=subset(dat, year==tail))+
+  geom_line( aes(year,obs), col="grey75",data=subset(dat,tail==2015))+
+  geom_point(aes(year,obs),fill="grey75",shape=21,data=subset(dat,tail==2015&year>2003))+
+  facet_grid(Scenario~Run,scale="free")+
+  xlab("Year")+ylab("Index")+theme_bw()+theme(legend.position="bottom")+
+  scale_color_continuous("Tail",breaks=c(2005,2010,2015))+ 
+  geom_label(aes(x=x,y=y,label=as.character(signif(mase,3))),data=subset(lbl,name==unique(xvlss$name)[5]))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Hindcasts for Stock Synthesis assessments `r unique(xvlss$name)[5]` 
+
+```{r, eval=FALSE}
+plotProduction(bds[[2]])+
+  geom_path(aes(biomass,yield/4),data=model.frame(FLQuants(bds[[2]],"biomass"=stock,"yield"=catch)))
+
+```
+
+```{r, eval=FALSE}
+plotProduction(bds[[1]])+
+  geom_path(aes(SB_i,SP),data=jbs[[1]]$pfunc)+
+  geom_path(aes(B,B*F),data=jbs[[1]]$timeseries[,"mu",])
+
+```
+
+
+```{r, runs-jabba, fig.width=8,fig.height=10}
+library(DescTools)
+
+dgs=ldply(jbs, function(x) x$diags)
+rts=ddply(dgs, .(run,r,name), with, {
+        dat=merge(data.frame(year=min(year):max(year)),data.frame(year=year,obs=obs,hat=hat),all.x=T)
+        if (all(dat$obs/dat$hat>1,na.rm=T)|all(dat$obs/dat$hat<1,na.rm=T)) return(data.frame(p=0))
+        data.frame(p=RunsTest(residual,rep(0,length(residual)),alternative="g")$p.value)})
+
+ggplot(dgs)+
+  geom_hline(aes(yintercept=0),col="red")+
+  geom_point(aes(year,residual,col=factor(r)))+
+  facet_grid(run~name,scale="free")+
+  theme_bw()+theme(legend.position="bottom")
+```
+
+**Figure `r iFig=iFig+1; iFig`** CPUE residuals for Jabba. 
+
+
+```{r, runs-ss, fig.width=8,fig.height=10}
+dgs=cbind(expand.grid(seq(dim(smry$dg)[1]/12),
+                     Run =c("Run 1","Run 2","Run 3"),
+                     Scenario=c("Base","North Pacific","Productivity Low","Productivity High"))[,-1],smry$dg)[,-3]
+dgs$Scenario=factor(dgs$Scenario,levels=c("Base","Productivity Low","Productivity High","North Pacific"))
+
+rts=ddply(dgs, .(Run,Scenario,name), with, {
+        dat=merge(data.frame(year=min(year):max(year)),data.frame(year=year,obs=obs,hat=hat),all.x=T)
+        if (all(dat$obs/dat$hat>1,na.rm=T)|all(dat$obs/dat$hat<1,na.rm=T)) return(data.frame(p=0))
+        data.frame(p=RunsTest(residual,rep(0,length(residual)),alternative="g")$p.value)})
+
+ggplot(dgs)+
+  geom_hline(aes(yintercept=0),col="red")+
+  geom_point(aes(year,residual,col=Scenario))+
+  facet_grid(Run~name,scale="free")+
+  theme_bw()+theme(legend.position="bottom")
+```
+
+**Figure `r iFig=iFig+1; iFig`** CPUE residuals for Stock Synthesis. 
+
+
+```{r, mohn-jabba}
+load(file.path(dirRes,"retro.RData"))
+ref=merge(subset(retro,tail==2015&year>2005&qname=="Stock")[,-c(1,6)],
+           subset(retro,tail==year&qname=="Stock")[,-6], by=c("run","r","year"))
+mohn =ddply(ref,.(run,r), with, data.frame(mohn=mean((data.y-data.x)/data.x)))
+ggplot(mohn)+
+  geom_histogram(aes(mohn),binwidth=0.01)+ 
+  theme_bw()+
+  scale_x_continuous(limits=c(-0.2,0.2))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Mohn's $\rho$ for JABBA, acceptable range is $[-0.15, 2]$.
+
+
+```{r, mohn-ss}
+load(file.path(dirRes,"rtrss.RData"))
+rtr=ldply(rtr,rbind) 
+
+ref= merge(subset(rtr,tail==2014&year>2002)[,c("Run","Scenario","year","ssb")],
+           subset(rtr,tail==year)[,c("Run","Scenario","tail","year","ssb")], by=c("Run","Scenario","year"))
+mohn =ddply(ref,.(Run,Scenario), with, data.frame(mohn=mean((ssb.y-ssb.x)/ssb.x,na.rm=TRUE)))
+
+ggplot(mohn)+
+  geom_histogram(aes(mohn),binwidth=0.01)+
+  theme_bw()+
+  scale_x_continuous(limits=c(-0.2,0.2))
+```
+
+**Figure `r iFig=iFig+1; iFig`** Mohn's $\rho$ for Stock Synthesis, acceptable range is $[-0.15, 2]$.
+
+
+```{r, sp-jabba, fig.height=8,fig.width=10}
+load(file.path(dirRes,"jbs.RData"))
+load(file.path(dirRes,"bds.RData"))
+
+sp=ldply(bds, function(x) { 
+  model.frame(mcf(FLQuants(sp=window(stock(x),start=dims(x)$minyear+1,end=dims(bds[[1]])$maxyear+1)-
+                                 stock(x)+catch(x),
+                       biomass=stock(x))),drop=TRUE)})
+sp=cbind(attributes(jbs)[[2]][sp$.id,],sp)[,-3]
+names(sp)[3]="Year"
+ggplot(sp)+
+  geom_line(aes(biomass,sp,col=Year))+
+  geom_point(aes(biomass,sp,col=Year),shape=21,fill="white")+
+  facet_grid(r~run)+
+  theme_bw()+theme(legend.position="bottom")+
+  xlab("Biomassr")+ylab("Surplus Production")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Surplus production for Jabba. 
+
+```{r, sp-ss, fig.height=6,fig.width=6}
+sp=transform(smry[[5]],year=year+2016-max(year))
+sp=cbind(expand.grid(year=unique(sp$year),
+                     Run =c("Run 1","Run 2","Run 3"),
+                     Scenario=c("Base","North Pacific","Productivity Low","Productivity High"))[,-1],sp)
+sp$Scenario=factor(sp$Scenario,levels=c("Base","Productivity Low","Productivity High","North Pacific"))
+ggplot(sp)+
+  geom_line(aes(biomass,sp,col=year))+
+  geom_point(aes(biomass,sp,col=year),shape=21,fill="white")+
+  facet_grid(Scenario~Run)+
+  xlab("Biomass")+ylab("Surplus Production")+
+  theme_bw()+theme(legend.position="bottom")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Surplus production for Stock Synthesis.
+
+```{r, eval=FALSE}
+jb=jbs[[1]]
+spFuncJabba<dunction(x){
+  dat=x$inputseries$catch
+  names(dat)[1:2]=c("year","catch")
+  dat$biomass=x$timeseries[,"mu","B"][as.character(dat$year)]
+  dat$sp=c(dat$biomass[-1],NA)-dat$biomass+dat$catch
+  dat}
+```
+
+```{r, recDev, figure.width=8, fig.height=6}
+ggplot(ddply(ts,.(Scenario,Run), transform, dev=rec/mean(rec[1:20])))+
+  geom_point( aes(year,dev))+
+  geom_smooth(aes(year,dev),se=FALSE)+
+  facet_grid(Run~Scenario)+
+  theme_bw()+xlab("Year")+ylab("Recruitment deviate")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Recruitment deviates by scenario for Stock Synthesis.
+
+
+```{r, pErr, figure.width=8, fig.height=8}
+dat=mdply(seq(length(jbs)), function(x) data.frame(year=as.numeric(dimnames(jbs[[x]]$timeseries)[[1]]),pErr=jbs[[x]]$timeseries[,"mu","procB"]))
+dat=cbind(dat,attributes(jbs)[[2]][dat$X1,])
+
+ggplot(dat)+
+  geom_point( aes(year,pErr))+
+  geom_smooth(aes(year,pErr),se=FALSE)+
+  facet_grid(run~r)+
+  theme_bw()+xlab("Year")+ylab("Process Error")+
+  scale_x_continuous(breaks=seq(1960,2020,20))
+```
+
+
+**Figure `r iFig=iFig+1; iFig`** Processes error by scenario for JABBA.
+
+```{r, ssb-jb, fig.height=6, fig.width=8}
+load(file.path(dirRes,"bds.RData"))
+
+dat=ldply(bds, function(x)
+as.data.frame(FLQuants(x,stock=function(x) stock(x)/refpts(x)["bmsy"]),drop=T))
+dat=cbind(attributes(jbs)[[2]][dat$.id,],dat)
+
+ggplot(transform(dat,r=paste("r=", r)))+
+  geom_hline(aes(yintercept=1),col="red")+
+  geom_line(aes(year,data))+
+  facet_grid(run~r,scale="free_y")+
+  xlab("Year")+ylab("B:BMSY")+theme_bw()+theme(legend.position="bottom")
+```
+
+**Figure `r iFig=iFig+1; iFig`** Time series relative to $MSY$ benchmarks for JABBA scenarios.
