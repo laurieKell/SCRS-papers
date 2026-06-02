@@ -1,0 +1,578 @@
+---
+title: "Robustness diagnostics content"
+output: latex_fragment
+params:
+  study_id: "sma-2026"
+  backend: "ss3"
+  study_label: ""
+  assessment_id: ""
+  model_class: "SS3"
+  ss_base: ""
+  assessment_base: ""
+  data_dir: ""
+  scenarios: !expr c(
+    "Scenario_1/Sc1_Base",
+    "Scenario_2/Scn02_base",
+    "Scenario_3/Sc3_Base"
+  )
+  retro_scenarios: !expr c("Scenario_2/Scn02_base", "Scenario_3/Sc3_Base")
+  reference_scenario: "Scenario_1/Sc1_Base"
+  scenario_register: !expr data.frame(id = character(0), label = character(0), purpose = character(0), stringsAsFactors = FALSE)
+  capabilities: !expr list()
+  jobs: !expr list()
+  paper_figures: !expr character(0)
+  profile_import_from: null
+  profile_scenario: "Scenario_1/Sc1_Base"
+  cv_scenario: "Scenario_1/Sc1_Base"
+  appendix_dir: ""
+  project_dir: ""
+  ss_version: ""
+  pe_ss3_sma_dir: ""
+  run_code: true
+  launch_profiles: false
+  strict_errors: true
+---
+
+<!--
+Required R packages (robustness diagnostics):
+
+  tier       package    role
+  --------   ---------  --------------------------------------------------
+  core       knitr      knit template; format LaTeX tables
+  run_code   r4ss       read SS3 output across scenarios
+  run_code   FLRebuild  curveSS(); scenario time series and process residuals
+  run_code   ss3om      readFLSss3(); FLR stock objects from SS3
+  run_code   sstruth    retrospective and hindcast data extraction
+  run_code   ggplot2    scenario comparison and hindcast figures
+  run_code   plyr       summarise scenario outputs
+  run_code   reshape2   reshape scenario tables for plotting
+  planned    dplyr      summarise scenario outputs
+  planned    tidyr      reshape scenario / ensemble tables
+  planned    FLCore     FLR stock objects for status and reference points
+  planned    FLRebuild  rebuilding metrics and projections (extended)
+  planned    kobe       Kobe-phase and status classification plots
+  run_code   mvtnorm    MVLN sampling from SS3 covariance matrix
+  run_code   patchwork  Optional multi-panel MVLN status figures
+
+Source material: pe-ss3-sma/PE-sma-results.Rmd (curveSS, scenario ts, residuals),
+                 pe-ss3-sma/PE-backtest.Rmd, config-defaults.R,
+                 sstruth::retroBacktestData(), mvln/R/ssMVLNFunction.R
+-->
+
+```{r setup, include=FALSE}
+source(file.path(params$appendix_dir, "R", "appendix-utils.R"))
+cfg <- resolve_appendix_params(params)
+load_appendix_helpers(cfg)
+
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.path = file.path(cfg$appendix_dir, "figs", "robustness", "robustness-"),
+  fig.width = 9,
+  fig.height = 6,
+  dev = "png",
+  dpi = 200
+)
+
+dir.create(file.path(cfg$appendix_dir, "figs", "robustness"), recursive = TRUE, showWarnings = TRUE)
+paths <- scenario_paths(cfg)
+paths_ok <- paths[dir.exists(paths)]
+do_run <- isTRUE(cfg$run_code) && length(paths_ok) > 0L
+if (do_run) {
+  require_ok(length(paths_ok) > 0L, "No SS3 scenario directories found under ss_base", cfg)
+}
+ss3 <- if (do_run) load_assessment_case_study(cfg) else NULL
+st_rob <- if (do_run) load_assessment_robustness(cfg) else NULL
+catch_bt <- if (do_run) load_collected_catch_backtests(cfg) else NULL
+mvln <- if (do_run) load_mvln_ensemble(cfg) else NULL
+cv_weights <- if (do_run) load_collected_ensemble_cv_weights(cfg) else NULL
+weight_cmp <- if (do_run) ensemble_weight_comparison(cfg) else NULL
+if (do_run) {
+  require_data(catch_bt$summary, "Catch back-test summary", cfg)
+  require_ok(!is.null(mvln$terminal), "MVLN terminal draws", cfg)
+}
+if (do_run && is.null(weight_cmp) && !is.null(cv_weights) && !is.null(cv_weights$weight_comparison)) {
+  weight_cmp <- cv_weights$weight_comparison
+}
+```
+
+```{r write-libraries, include=FALSE}
+robustness_libraries <- data.frame(
+  package = c(
+    "knitr", "r4ss", "FLRebuild", "ss3om", "sstruth", "ggplot2", "dplyr", "plyr",
+    "reshape2", "tidyr", "FLCore", "kobe", "mvtnorm", "patchwork"
+  ),
+  role = c(
+    "Knit template; format LaTeX tables",
+    "Read SS3 output across scenarios",
+    "curveSS(); scenario time series and process residuals",
+    "readTruth / readFLSss3(); FLR stock objects from SS3",
+    "retroBacktestData, plotRatios, ssPeDiagnose, plotSpSsb",
+    "Scenario comparison, retrospective, and MVLN figures",
+    "Retrospective trajectory plots (trajMsyLong); MVLN time-series summaries",
+    "Summarise scenario outputs (ddply)",
+    "Reshape scenario tables and MVLN draws (melt/cast)",
+    "Reshape scenario and ensemble tables (planned)",
+    "FLR stock objects for status and reference points (planned)",
+    "Kobe-phase plots (planned; ggplot used for MVLN Kobe comparison)",
+    "Multivariate normal sampling for MVLN status uncertainty",
+    "Combine MVLN status time-series panels (optional)"
+  ),
+  tier = c(
+    "core", "run_code", "run_code", "run_code", "run_code",
+    "run_code", "run_code", "run_code", "run_code",
+    "planned", "planned", "planned", "run_code", "run_code"
+  ),
+  stringsAsFactors = FALSE
+)
+write_libraries(cfg, "robustness", robustness_libraries)
+```
+
+```{r write-scenarios, include=FALSE}
+if (!is.null(cfg$scenario_register) && is.data.frame(cfg$scenario_register) && NROW(cfg$scenario_register)) {
+  reg <- cfg$scenario_register
+  scenario_register <- data.frame(
+    scenario = reg$id,
+    class = if ("class" %in% names(reg)) reg$class else c("reference", rep("structural sensitivity", NROW(reg) - 1L)),
+    purpose = if ("purpose" %in% names(reg)) reg$purpose else reg$label,
+    include_in_ensemble = TRUE,
+    weight = if (!is.null(mvln) && !is.null(mvln$weights)) {
+      unname(mvln$weights[reg$id])
+    } else {
+      rep(1 / NROW(reg), NROW(reg))
+    },
+    stringsAsFactors = FALSE
+  )
+} else {
+  scenario_register <- data.frame(
+    scenario = cfg$scenarios,
+    class = c("reference", rep("structural sensitivity", length(cfg$scenarios) - 1L)),
+    purpose = c(
+      "Working / accepted model configuration",
+      "Alternative structural assumption 1",
+      "Alternative structural assumption 2"
+    )[seq_along(cfg$scenarios)],
+    include_in_ensemble = c(TRUE, rep(TRUE, length(cfg$scenarios) - 1L)),
+    weight = if (!is.null(mvln) && !is.null(mvln$weights)) {
+      unname(mvln$weights[cfg$scenarios])
+    } else {
+      rep(1 / length(cfg$scenarios), length(cfg$scenarios))
+    },
+    stringsAsFactors = FALSE
+  )
+}
+
+write_content(
+  cfg,
+  "robustness/scenarios.tex",
+  c(
+    kable_fragment(
+      scenario_register,
+      caption = "Scenario register for robustness diagnostics.",
+      label = "tab:robustness-scenarios"
+    ),
+    ""
+  )
+)
+```
+
+```{r write-checks, include=FALSE}
+checks_lines <- c("% Robustness diagnostic checks.", "")
+
+if (!is.null(ss3) && !is.null(ss3$pe)) {
+  pe_summary <- summarise_pe_scenarios(ss3$pe)
+  checks_lines <- c(
+    checks_lines,
+    kable_fragment(
+      pe_summary,
+      caption = "Terminal-year scenario status relative to MSY reference points (from curveSS).",
+      label = "tab:robustness-pe-summary"
+    ),
+    ""
+  )
+}
+
+if (!is.null(st_rob) && !is.null(st_rob$ss_pe)) {
+  sspe_tbl <- ss_pe_diagnostics_table(st_rob$ss_pe)
+  if (!is.null(sspe_tbl)) {
+    checks_lines <- c(
+      checks_lines,
+      kable_fragment(
+        sspe_tbl,
+        caption = "Surplus-production misspecification flags by scenario (sstruth::ssPeDiagnose).",
+        label = "tab:robustness-sspe"
+      ),
+      ""
+    )
+  }
+}
+
+if (!is.null(st_rob) && !is.null(st_rob$retro) && !is.null(st_rob$retro$oneStep)) {
+  one_step <- st_rob$retro$oneStep
+  num_cols <- vapply(one_step, is.numeric, logical(1))
+  one_step[num_cols] <- lapply(one_step[num_cols], function(x) signif(x, 4))
+  checks_lines <- c(
+    checks_lines,
+    kable_fragment(
+      one_step,
+      caption = "One-step-ahead retrospective errors (sstruth::retroBacktestData).",
+      label = "tab:robustness-retro-onestep"
+    ),
+    ""
+  )
+}
+
+if (!is.null(mvln) && !is.null(mvln$summary)) {
+  mvln_tbl <- mvln_summary_table(mvln)
+  if (!is.null(mvln_tbl)) {
+    checks_lines <- c(
+      checks_lines,
+      kable_fragment(
+        mvln_tbl,
+        caption = paste0(
+          "Terminal-year MVLN status uncertainty by scenario (year ",
+          mvln$terminal_year,
+          "). Harvest = F/FMSY from Hessian draws."
+        ),
+        label = "tab:robustness-mvln-terminal"
+      ),
+      ""
+    )
+  }
+}
+
+if (!is.null(catch_bt) && !is.null(catch_bt$summary) && NROW(catch_bt$summary)) {
+  bt_tbl <- catch_bt$summary
+  num_cols <- vapply(bt_tbl, is.numeric, logical(1))
+  bt_tbl[num_cols] <- lapply(bt_tbl[num_cols], function(x) signif(x, 4))
+  checks_lines <- c(
+    checks_lines,
+    kable_fragment(
+      bt_tbl,
+      caption = "Catch back-test forecast summaries by peel and forecast scenario (collected via run-catch-backtests.R).",
+      label = "tab:robustness-catch-backtest"
+    ),
+    ""
+  )
+}
+
+if (length(checks_lines) <= 2L) {
+  checks_lines <- c(
+    checks_lines,
+    "% Retrospective, hindcast, and sensitivity summaries.",
+    if (do_run && !retro_dirs_available(cfg)) {
+      c(
+        "% Retrospective directories not found; run pe-ss3-sma/run-retros.R then re-render.",
+        ""
+      )
+    } else {
+      c(
+        "% Set run_code = TRUE to populate from curveSS() and sstruth::retroBacktestData().",
+        ""
+      )
+    }
+  )
+}
+
+write_content(cfg, "robustness/checks.tex", checks_lines)
+```
+
+```{r write-output, include=FALSE}
+output_lines <- c("% Robustness diagnostic figures.", "")
+
+if (!is.null(ss3) && !is.null(ss3$pe)) {
+  save_curve_ss_paper_figures(cfg, ss3$pe)
+  pe_figs <- list(
+    list(
+      plot = plot_pe_ts(ss3$pe),
+      file = "ss3-ts.png",
+      caption = "SS3 scenario time series relative to MSY reference points.",
+      label = "fig:robustness-ss3-ts",
+      width = 8,
+      height = 8,
+      fig_width = 0.92
+    ),
+    list(
+      plot = plot_pe_residual_time(ss3$pe),
+      file = "ss3-res-time.png",
+      caption = "Process residuals by scenario (from curveSS).",
+      label = "fig:robustness-ss3-res-time",
+      width = 9,
+      height = 4,
+      fig_width = 0.92
+    ),
+    list(
+      plot = plot_pe_residual_acf(ss3$pe),
+      file = "ss3-res-acf.png",
+      caption = "ACF of process residuals by scenario.",
+      label = "fig:robustness-ss3-res-acf",
+      width = 9,
+      height = 3,
+      fig_width = 0.92
+    )
+  )
+
+  for (item in pe_figs) {
+    fig_path <- save_appendix_figure(
+      cfg,
+      item$plot,
+      strand = "robustness",
+      filename = item$file,
+      width = item$width,
+      height = item$height
+    )
+    if (!is.null(fig_path) && file.exists(fig_path)) {
+      output_lines <- c(
+        output_lines,
+        figure_fragment(
+          cfg,
+          fig_path,
+          caption = item$caption,
+          label = item$label,
+          width = item$fig_width
+        ),
+        ""
+      )
+    }
+  }
+}
+
+if (!is.null(st_rob) && !is.null(st_rob$retro)) {
+  retro_figs <- list(
+    list(
+      plot = plot_retro_traj_msy(st_rob$retro),
+      file = "retro-traj-msy.png",
+      caption = "Retrospective peel trajectories vs MSY benchmarks (sstruth::retroBacktestData).",
+      label = "fig:robustness-retro-traj",
+      width = 10,
+      height = 9,
+      fig_width = 0.95
+    ),
+    list(
+      plot = plot_retro_ratio_horizon(
+        st_rob$retro,
+        fore_col = "foreBratio",
+        ref_col = "refBratio",
+        ylab = "SSB / BMSY",
+        title = "Multi-step SSB/BMSY ratios by peel",
+        cfg = cfg
+      ),
+      file = "retro-bratio-horizon.png",
+      caption = "Multi-horizon SSB/BMSY retrospective ratios (sstruth::plotRatios).",
+      label = "fig:robustness-retro-bratio",
+      width = 9,
+      height = 8,
+      fig_width = 0.92
+    )
+  )
+
+  for (item in retro_figs) {
+    fig_path <- save_appendix_figure(
+      cfg,
+      item$plot,
+      strand = "robustness",
+      filename = item$file,
+      width = item$width,
+      height = item$height
+    )
+    if (!is.null(fig_path) && file.exists(fig_path)) {
+      output_lines <- c(
+        output_lines,
+        figure_fragment(
+          cfg,
+          fig_path,
+          caption = item$caption,
+          label = item$label,
+          width = item$fig_width
+        ),
+        ""
+      )
+    }
+  }
+}
+
+res_figs <- cfg$paper_figures
+if (is.null(res_figs) || !length(res_figs)) {
+  res_figs <- c("sma-fig-res-time-1.png", "sma-fig-res-acf-1.png")
+} else {
+  res_figs <- res_figs[grepl("res-", res_figs)]
+}
+
+for (fig in res_figs) {
+  src <- file.path(cfg$project_dir, "figs", fig)
+  if (file.exists(src)) {
+    output_lines <- c(
+      output_lines,
+      figure_fragment(
+        cfg,
+        src,
+        caption = gsub("-", " ", sub("\\.png$", "", fig)),
+        label = paste0("fig:robustness-", sub("\\.png$", "", fig)),
+        width = 0.92
+      ),
+      ""
+    )
+  }
+}
+
+write_content(cfg, "robustness/output.tex", output_lines)
+```
+
+```{r write-ensemble, include=FALSE}
+ensemble_lines <- c(
+  "% Best-assessment versus ensemble comparison (MVLN).",
+  ""
+)
+
+if (!is.null(mvln) && !is.null(mvln$summary)) {
+  mvln_tbl <- mvln_summary_table(mvln)
+  if (!is.null(mvln_tbl)) {
+    ensemble_lines <- c(
+      ensemble_lines,
+      paste0(
+        "% Reference scenario: ", cfg$reference_scenario,
+        "; MVLN Monte Carlo draws = ", mvln$mc, " per scenario."
+      ),
+      "",
+      kable_fragment(
+        mvln_tbl,
+        caption = paste0(
+          "MVLN terminal status and tail probabilities (year ",
+          mvln$terminal_year,
+          "). Compare estimation uncertainty (reference) with structural sensitivity scenarios."
+        ),
+        label = "tab:robustness-mvln-ensemble"
+      ),
+      ""
+    )
+  }
+
+  if (!is.null(weight_cmp) && NROW(weight_cmp)) {
+    cmp_tbl <- ensemble_weight_comparison_table(weight_cmp)
+    if (!is.null(cmp_tbl)) {
+      ensemble_lines <- c(
+        ensemble_lines,
+        kable_fragment(
+          cmp_tbl,
+          caption = paste0(
+            "Ensemble weight comparison by scenario: (i) equal weights; ",
+            "(ii) ICES-style Akaike weights ",
+            "$w_i \\propto \\exp(-\\Delta\\mathrm{AIC}/2)$ from total SS3 negative log-likelihood ",
+            "(comparable models); (iii) CVindexmase; (iv) CVindexrho ",
+            "(hindcast skill from retrospective peels; Scenarios 2--3 only until LOO CPUE is collected)."
+          ),
+          label = "tab:robustness-ensemble-weight-comparison"
+        ),
+        ""
+      )
+    }
+  } else if (!is.null(cv_weights) && !is.null(cv_weights$weights) && NROW(cv_weights$weights)) {
+    w_tbl <- cv_weights$weights
+    num_cols <- vapply(w_tbl, is.numeric, logical(1))
+    w_tbl[num_cols] <- lapply(w_tbl[num_cols], function(x) signif(x, 4))
+    ensemble_lines <- c(
+      ensemble_lines,
+      kable_fragment(
+        w_tbl,
+        caption = paste0(
+          "Scenario ensemble weights from hindcast CV (CVindexmase / CVindexrho; combine = ",
+          cv_weights$combine_method %||% "average",
+          "). Run run-ensemble-weights.R --collect for full comparison table."
+        ),
+        label = "tab:robustness-ensemble-cv-weights"
+      ),
+      ""
+    )
+  }
+
+  mvln_figs <- list(
+    list(
+      plot = plot_mvln_kobe_ensemble(mvln),
+      file = "mvln-kobe-terminal.png",
+      caption = paste0(
+        "Terminal-year Kobe-style comparison of MVLN draws: reference (",
+        cfg$reference_scenario,
+        ") vs structural sensitivity scenarios."
+      ),
+      label = "fig:robustness-mvln-kobe",
+      width = 9,
+      height = 7,
+      fig_width = 0.92
+    ),
+    list(
+      plot = plot_mvln_terminal_compare(mvln),
+      file = "mvln-terminal-compare.png",
+      caption = "Terminal MVLN medians and 5--95% intervals for SSB/BMSY and F/FMSY by scenario.",
+      label = "fig:robustness-mvln-terminal",
+      width = 9,
+      height = 6,
+      fig_width = 0.92
+    ),
+    list(
+      plot = plot_mvln_status_ts(mvln),
+      file = "mvln-status-ts.png",
+      caption = "Recent-year MVLN status trajectories with 5--95% intervals by scenario.",
+      label = "fig:robustness-mvln-ts",
+      width = 9,
+      height = 8,
+      fig_width = 0.92
+    )
+  )
+
+  for (item in mvln_figs) {
+    fig_path <- save_appendix_figure(
+      cfg,
+      item$plot,
+      strand = "robustness",
+      filename = item$file,
+      width = item$width,
+      height = item$height
+    )
+    if (!is.null(fig_path) && file.exists(fig_path)) {
+      ensemble_lines <- c(
+        ensemble_lines,
+        figure_fragment(
+          cfg,
+          fig_path,
+          caption = item$caption,
+          label = item$label,
+          width = item$fig_width
+        ),
+        ""
+      )
+    }
+  }
+} else {
+  ensemble_lines <- c(
+    ensemble_lines,
+    if (do_run) {
+      c(
+        "% MVLN ensemble not available; ensure mvtnorm is installed and SS3 runs include a covariance matrix.",
+        paste0("% Expected scenarios under ", cfg$ss_base, "."),
+        ""
+      )
+    } else {
+      c(
+        "% Set run_code = TRUE to populate MVLN best-assessment vs scenario comparison.",
+        ""
+      )
+    }
+  )
+}
+
+write_content(cfg, "robustness/ensemble.tex", ensemble_lines)
+```
+
+```{r write-interpretation, include=FALSE}
+write_content(
+  cfg,
+  "robustness/interpretation.tex",
+  c(
+    "% Case-specific robustness interpretation.",
+    "% State which advice quantities are robust, which are model-dependent,",
+    "% and whether reporting should use a best assessment, screened scenario set, or ensemble.",
+    ""
+  )
+)
+```

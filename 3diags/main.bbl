@@ -1,0 +1,181 @@
+\begin{thebibliography}{21}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Carvalho et~al.(2021)Carvalho, Winker, Courtney, Kapur, Kell,
+  Cardinale, Schirripa, Kitakado, Yemane, Piner, et~al.]{carvalho2021cookbook}
+Felipe Carvalho, Henning Winker, Dean Courtney, Maia Kapur, Laurence Kell,
+  Massimiliano Cardinale, Michael Schirripa, Toshihide Kitakado, Dawit Yemane,
+  Kevin~R. Piner, et~al.
+\newblock A cookbook for using model diagnostics in integrated stock
+  assessments.
+\newblock \emph{Fisheries Research}, 240:\penalty0 105959, 2021.
+\newblock \doi{10.1016/j.fishres.2021.105959}.
+
+\bibitem[Clark and Bj{\o}rnstad(2004)]{clark2004population}
+James~S. Clark and Ottar~N. Bj{\o}rnstad.
+\newblock Population time series: process variability, observation errors,
+  missing values, lags, and hidden states.
+\newblock \emph{Ecology}, 85\penalty0 (11):\penalty0 3140--3150, 2004.
+\newblock \doi{10.1890/03-0530}.
+
+\bibitem[Courtney and Rice(2024)]{courtney2024adnuts}
+Dean Courtney and Joel Rice.
+\newblock Example application of mcmc with adnuts for a north atlantic blue
+  shark stock synthesis model.
+\newblock \emph{Collect. Vol. Sci. Pap. ICCAT}, 81\penalty0 (6):\penalty0
+  1--31, 2024.
+\newblock SCRS/2024/084.
+
+\bibitem[Dickey-Collas et~al.(2015)Dickey-Collas, Hintzen, van Hal, Hollander,
+  Kraak, and Pastoors]{dickeycollas2015quirky}
+Mark Dickey-Collas, Niels~T. Hintzen, Ralf van Hal, Anne~B. Hollander,
+  Sarah~B.M. Kraak, and Martin Pastoors.
+\newblock Quirky patterns in time-series of estimates of recruitment could be
+  artefacts.
+\newblock \emph{ICES Journal of Marine Science}, 72\penalty0 (1):\penalty0
+  111--116, 2015.
+\newblock \doi{10.1093/icesjms/fsu151}.
+
+\bibitem[Fischer et~al.(2023)Fischer, Oliveira, Mumford, and Kell]{Fischer2023}
+S.~H. Fischer, J.~A. A.~De Oliveira, J.~D. Mumford, and L.~T. Kell.
+\newblock Risk equivalence in data-limited and data-rich fisheries management:
+  An example based on the ices advice framework.
+\newblock \emph{Fish and Fisheries}, 24:\penalty0 231--247, 2023.
+\newblock \doi{10.1111/faf.12722}.
+\newblock URL \url{https://doi.org/10.1111/faf.12722}.
+
+\bibitem[Griffiths et~al.(2024)Griffiths, Winker, Bartolino, Wennhage, Orio,
+  and Cardinale]{griffiths2024including}
+Christopher~A. Griffiths, Henning Winker, Valerio Bartolino, H{\aa}kan
+  Wennhage, Alessandro Orio, and Massimiliano Cardinale.
+\newblock Including older fish in fisheries management: A new age-based
+  indicator and reference point for exploited fish stocks.
+\newblock \emph{Fish and Fisheries}, 25\penalty0 (1):\penalty0 18--37, 2024.
+
+\bibitem[{ICCAT}(2025)]{ICCAT2025SMA}
+{ICCAT}.
+\newblock Report of the 2025 shortfin mako shark stock assessment meeting.
+\newblock Collect. Vol. Sci. Pap. CVSP 82(2), International Commission for the
+  Conservation of Atlantic Tunas (ICCAT), Madrid, Spain, 2025.
+\newblock URL
+  \url{https://www.iccat.int/Documents/CVSP/CV082_2025/n_2/CV082020007.pdf}.
+
+\bibitem[{ICES}(2024)]{ICES2024}
+{ICES}.
+\newblock Workshop on the calculation and evaluation of new reference points
+  for category 1--2 stocks (wknewref).
+\newblock Technical report, ICES, 12 2024.
+\newblock URL
+  \url{https://ices-library.figshare.com/articles/report/Workshop_on_the_calculation_and_evaluation_of_new_reference_points_for_category_1_2_stocks_WKNEWREF_/27905664}.
+
+\bibitem[Kell et~al.(2016)Kell, Kimoto, and Kitakado]{kell2016evaluation}
+Laurence~T. Kell, Ai~Kimoto, and Toshihide Kitakado.
+\newblock Evaluation of the prediction skill of stock assessment using
+  hindcasting.
+\newblock \emph{Fisheries Research}, 183:\penalty0 119--127, 2016.
+\newblock \doi{10.1016/j.fishres.2016.05.017}.
+
+\bibitem[Kell et~al.(2024)Kell, Mosqueira, Winker, Sharma, Kitakado, and
+  Cardinale]{kell2024empirical}
+Laurence~T. Kell, Iago Mosqueira, Henning Winker, Rishi Sharma, Toshihide
+  Kitakado, and Massimiliano Cardinale.
+\newblock Empirical validation of integrated stock assessment models to
+  ensuring risk equivalence: A pathway to resilient fisheries management.
+\newblock \emph{PLOS ONE}, 19\penalty0 (6):\penalty0 e0302576, 2024.
+\newblock \doi{10.1371/journal.pone.0302576}.
+
+\bibitem[Kell et~al.(2025)Kell, Cardinale, Rice, Sant'{A}na, Taylor, and
+  Courtney]{kell2025profile}
+Laurence~T. Kell, Massimiliano Cardinale, Joel Rice, Rodrigo Sant'{A}na, Nathan
+  Taylor, and Dean Courtney.
+\newblock Strong beliefs weakly held: Likelihood profiling to disclose model
+  misspecification and biological implausibility.
+\newblock \emph{Collect. Vol. Sci. Pap. ICCAT}, 82\penalty0 (2):\penalty0
+  1--17, 2025.
+\newblock SCRS/2025/126.
+
+\bibitem[Kell et~al.(submitted)Kell, Mildenberger, Griffiths, Taylor,
+  Cardinale, and Berg]{kell2026rebuild}
+Laurence~T. Kell, Tobias~K. Mildenberger, Christopher~A. Griffiths, Marc~H.
+  Taylor, Massimiliano Cardinale, and Casper~W. Berg.
+\newblock Rebuilding-time based reference points: A forward-looking
+  risk-equivalent framework for fisheries management.
+\newblock \emph{Fish and Fisheries}, submitted.
+\newblock In review.
+
+\bibitem[Methot and Wetzel(2013)]{MethotWetzel2013}
+Richard~D. Methot and Chantel~R. Wetzel.
+\newblock Stock synthesis: A biological and statistical framework for fish
+  stock assessment and fishery management.
+\newblock \emph{Fisheries Research}, 142:\penalty0 86--99, 2013.
+\newblock \doi{10.1016/j.fishres.2012.10.012}.
+
+\bibitem[Nielsen and Berg(2014)]{nielsen2014sam}
+Anders Nielsen and Casper~W. Berg.
+\newblock Estimation of time-varying selectivity in stock assessments using
+  state-space models.
+\newblock \emph{Fisheries Research}, 158:\penalty0 96--101, 2014.
+\newblock \doi{10.1016/j.fishres.2014.04.006}.
+
+\bibitem[Pedersen and Berg(2017)]{pedersen2017spict}
+Martin~W. Pedersen and Casper~W. Berg.
+\newblock A stochastic surplus production model in continuous time.
+\newblock \emph{Fish and Fisheries}, 18\penalty0 (2):\penalty0 226--243, 2017.
+\newblock \doi{10.1111/faf.12174}.
+
+\bibitem[Rodionov(2004)]{rodionov2004sequential}
+Sergei~N. Rodionov.
+\newblock A sequential algorithm for testing climate regime shifts.
+\newblock \emph{Geophysical Research Letters}, 31\penalty0 (9), 2004.
+\newblock \doi{10.1029/2004GL019448}.
+
+\bibitem[Roux et~al.(2022)Roux, Duplisea, Hunter, and Rice]{Roux2022}
+M.-J. Roux, D.~E. Duplisea, K.~L. Hunter, and J.~Rice.
+\newblock Consistent risk management in a changing world: risk equivalence in
+  fisheries and other human activities affecting marine resources and
+  ecosystems.
+\newblock \emph{Frontiers in Climate}, 3:\penalty0 781559, 2022.
+\newblock \doi{10.3389/fclim.2021.781559}.
+\newblock URL \url{https://doi.org/10.3389/fclim.2021.781559}.
+
+\bibitem[Simmonds et~al.(2019)Simmonds, Holmes, Miller, and
+  Minto]{simmonds2019biological}
+E.~John Simmonds, Steven~J. Holmes, David~C.M. Miller, and C{\'o}il{\'i}n
+  Minto.
+\newblock Biological reference points based on equilibrium population models
+  should not be used.
+\newblock \emph{ICES Journal of Marine Science}, 76\penalty0 (4):\penalty0
+  1035--1046, 2019.
+\newblock \doi{10.1093/icesjms/fsz008}.
+
+\bibitem[Walters et~al.(2008)Walters, Hilborn, and
+  Christensen]{walters2008surplus}
+Carl~J. Walters, Ray Hilborn, and Villy Christensen.
+\newblock Surplus production dynamics in declining and recovering fish
+  populations.
+\newblock \emph{Canadian Journal of Fisheries and Aquatic Sciences},
+  65\penalty0 (11):\penalty0 2536--2551, 2008.
+\newblock \doi{10.1139/F08-170}.
+
+\bibitem[Winker et~al.(2020)Winker, Carvalho, and Kerwath]{winker2020age}
+Henning Winker, Felipe Carvalho, and Sven Kerwath.
+\newblock Age-structured biomass dynamics of north atlantic shortfin mako with
+  implications for the interpretation of surplus production models.
+\newblock \emph{Collective Volume of Scientific Papers ICCAT}, 76\penalty0
+  (10):\penalty0 316--336, 2020.
+
+\bibitem[Winker et~al.(2025)Winker, Cardinale, Gerritsen, Herrera, Castellanos,
+  Farias, Sampedro, Moura, Mosqueira, and Kell]{Winker2025assessing}
+Henning Winker, Massimiliano Cardinale, Hans Gerritsen, Juan~Gil Herrera, Paola
+  Castellanos, Ines Farias, Paz Sampedro, Teresa Moura, Iago Mosqueira, and
+  Laurence~T. Kell.
+\newblock The ices msy approach to reference point estimation is not
+  precautionary.
+\newblock \emph{ICES Journal of Marine Science}, 2025.
+\newblock Conditionally accepted.
+
+\end{thebibliography}

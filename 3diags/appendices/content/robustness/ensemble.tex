@@ -1,0 +1,55 @@
+% Best-assessment versus ensemble comparison (MVLN).
+
+% Reference scenario: Scenario-1; MVLN Monte Carlo draws = 500 per scenario.
+
+\begin{table}
+
+\caption{\label{tab:robustness-mvln-ensemble}MVLN terminal status and tail probabilities (year 2023). Compare estimation uncertainty (reference) with structural sensitivity scenarios.}
+\centering
+\begin{tabular}[t]{llrrrrrrrrrr}
+\toprule
+  & scenario & terminal\_year & stock\_median & stock\_p05 & stock\_p95 & harvest\_median & harvest\_p05 & harvest\_p95 & p\_overfished & p\_overfishing & weight\\
+\midrule
+Scenario-1 & Scenario-1 & 2023 & 1.05 & 0.867 & 1.32 & 24.3 & 21.0 & 27.9 & 0.326 & 1 & 0.333\\
+Scenario-2 & Scenario-2 & 2023 & 1.06 & 0.926 & 1.22 & 25.4 & 23.1 & 28.1 & 0.220 & 1 & 0.333\\
+Scenario-3 & Scenario-3 & 2023 & 1.16 & 0.938 & 1.42 & 43.3 & 35.5 & 52.7 & 0.112 & 1 & 0.333\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}
+
+\caption{\label{tab:robustness-ensemble-weight-comparison}Ensemble weight comparison by scenario: (i) equal weights; (ii) ICES-style Akaike weights $w_i \propto \exp(-\Delta\mathrm{AIC}/2)$ from total SS3 negative log-likelihood (comparable models); (iii) CVindexmase; (iv) CVindexrho (hindcast skill from retrospective peels; Scenarios 2--3 only until LOO CPUE is collected).}
+\centering
+\begin{tabular}[t]{lrrrr}
+\toprule
+scenario & w\_equal & w\_ices & w\_cvindexmase & w\_cvindexrho\\
+\midrule
+Scenario-1 & 0.3333 & 0 & NA & NA\\
+Scenario-2 & 0.3333 & 1 & 1 & 0.6667\\
+Scenario-3 & 0.3333 & 0 & 0 & 0.3333\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{appendices/figs/robustness/mvln-kobe-terminal.png}
+  \caption{Terminal-year Kobe-style comparison of MVLN draws: reference (Scenario-1) vs structural sensitivity scenarios.}
+  \label{fig:robustness-mvln-kobe}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{appendices/figs/robustness/mvln-terminal-compare.png}
+  \caption{Terminal MVLN medians and 5--95\% intervals for SSB/BMSY and F/FMSY by scenario.}
+  \label{fig:robustness-mvln-terminal}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{appendices/figs/robustness/mvln-status-ts.png}
+  \caption{Recent-year MVLN status trajectories with 5--95\% intervals by scenario.}
+  \label{fig:robustness-mvln-ts}
+\end{figure}
+

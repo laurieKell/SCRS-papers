@@ -1,0 +1,759 @@
+---
+title: "Internal diagnostics content"
+output: latex_fragment
+params:
+  study_id: "sma-2026"
+  backend: "ss3"
+  study_label: ""
+  assessment_id: ""
+  model_class: "SS3"
+  ss_base: ""
+  assessment_base: ""
+  data_dir: ""
+  scenarios: !expr c(
+    "Scenario_1/Sc1_Base",
+    "Scenario_2/Scn02_base",
+    "Scenario_3/Sc3_Base"
+  )
+  reference_scenario: "Scenario_1/Sc1_Base"
+  retro_scenarios: !expr c("Scenario_2/Scn02_base", "Scenario_3/Sc3_Base")
+  scenario_register: !expr data.frame(id = character(0), label = character(0), purpose = character(0), stringsAsFactors = FALSE)
+  capabilities: !expr list()
+  jobs: !expr list()
+  paper_figures: !expr character(0)
+  profile_import_from: null
+  profile_scenario: "Scenario_1/Sc1_Base"
+  cv_scenario: "Scenario_1/Sc1_Base"
+  appendix_dir: ""
+  project_dir: ""
+  ss_version: ""
+  pe_ss3_sma_dir: ""
+  run_code: true
+  launch_profiles: false
+  strict_errors: true
+---
+
+<!--
+Required R packages (internal diagnostics):
+
+  tier       package    role
+  --------   ---------  --------------------------------------------------
+  core       knitr      knit template; format LaTeX tables
+  run_code   r4ss       read SS3 output; summarise convergence
+  run_code   sstruth    curveSS, diagSS, ssU, ssLen, ssRunSummary, plot* diagnostics
+  run_code   diags      diagsFn via sstruth::ssU for CPUE summaries
+  run_code   ggplot2    diagnostic figures
+  run_code   reshape2   data reshaping for plots
+  run_code   ss3diags   SSrunstest, ssruns_sig3; CPUE runs-test plots with 3-sigma limits
+  planned    FLRebuild  fallback curveSS if sstruth unavailable
+  planned    ss3om      fallback readFLSss3 if readTruth unavailable
+
+Source material:
+  - sstruth/R/ss-diags.R, ss-u.R, ss-lencomp.R, ss-PE.R, pseudodataPipeline.R
+  - pe-ss3-sma/PE-sma-results.Rmd (curveSS, readFLSss3)
+  - ss-ll/Rmd/hessianProfile.Rmd (likelihood profiles)
+-->
+
+```{r setup, include=FALSE}
+source(file.path(params$appendix_dir, "R", "appendix-utils.R"))
+cfg <- resolve_appendix_params(params)
+load_appendix_helpers(cfg)
+
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.path = file.path(cfg$appendix_dir, "figs", "internal", "internal-"),
+  fig.width = 8,
+  fig.height = 6,
+  dev = "png",
+  dpi = 200
+)
+
+dir.create(file.path(cfg$appendix_dir, "figs", "internal"), recursive = TRUE, showWarnings = TRUE)
+dir.create(file.path(cfg$appendix_dir, "tables", "internal"), recursive = TRUE, showWarnings = TRUE)
+
+paths <- scenario_paths(cfg)
+paths_ok <- paths[dir.exists(paths)]
+do_run <- isTRUE(cfg$run_code) && length(paths_ok) > 0L
+if (do_run) {
+  require_ok(length(paths_ok) > 0L, "No SS3 scenario directories found under ss_base", cfg)
+}
+ref_rep <- if (do_run) assessment_reference_report(cfg) else NULL
+st <- if (do_run) load_assessment_internal(cfg, reference_path(cfg)) else NULL
+ss3 <- if (do_run) load_assessment_case_study(cfg) else NULL
+if (do_run) {
+  require_ok(!is.null(ref_rep), "Reference SS3 report", cfg)
+  require_ok(!is.null(ss3$pe), "SS3 process-error load (ss3$pe)", cfg)
+}
+
+if (do_run && isTRUE(cfg$launch_profiles) && !profile_runs_complete(cfg)) {
+  launch_likelihood_profiles(cfg, background = TRUE)
+}
+prof <- if (do_run) collect_likelihood_profiles(cfg) else NULL
+```
+
+```{r write-libraries, include=FALSE}
+internal_libraries <- data.frame(
+  package = c(
+    "knitr", "r4ss", "sstruth", "diags", "ggplot2", "reshape2", "ss3diags", "FLRebuild", "ss3om"
+  ),
+  role = c(
+    "Knit template; format LaTeX tables",
+    "Read SS3 output; summarise convergence and likelihood components",
+    "curveSS, diagSS, ssU, ssLen, ssRunSummary, residual plots",
+    "CPUE diagnostic summaries via sstruth::ssU",
+    "Likelihood, residual, and recruitment-deviation figures",
+    "Data reshaping for diagnostic plots",
+    "SSrunstest and ssruns_sig3; CPUE runs-test plots with 3-sigma limits",
+    "Fallback curveSS if sstruth unavailable",
+    "Fallback readFLSss3 via readTruth (optional)"
+  ),
+  tier = c(
+    "core", "run_code", "run_code", "run_code", "run_code", "run_code",
+    "run_code", "planned", "planned"
+  ),
+  stringsAsFactors = FALSE
+)
+write_libraries(cfg, "internal", internal_libraries)
+```
+
+```{r write-inputs, include=FALSE}
+pkg_versions <- c(
+  R = paste(R.version$major, R.version$minor, sep = "."),
+  r4ss = if (requireNamespace("r4ss", quietly = TRUE)) as.character(utils::packageVersion("r4ss")) else "not installed",
+  ss3diags = if (requireNamespace("ss3diags", quietly = TRUE)) as.character(utils::packageVersion("ss3diags")) else "not installed",
+  sstruth = if (requireNamespace("sstruth", quietly = TRUE)) as.character(utils::packageVersion("sstruth")) else "not installed",
+  diags = if (requireNamespace("diags", quietly = TRUE)) as.character(utils::packageVersion("diags")) else "not installed",
+  FLRebuild = if (requireNamespace("FLRebuild", quietly = TRUE)) as.character(utils::packageVersion("FLRebuild")) else "not installed",
+  ss3om = if (requireNamespace("ss3om", quietly = TRUE)) as.character(utils::packageVersion("ss3om")) else "not installed"
+)
+
+inputs <- data.frame(
+  item = c(
+    "Assessment ID",
+    "Model class",
+    "SS base directory",
+    "Scenarios",
+    "Reference scenario",
+    "SS version",
+    "R version",
+    "r4ss",
+    "ss3diags",
+    "sstruth",
+    "diags",
+    "FLRebuild",
+    "ss3om",
+    "Run code"
+  ),
+  value = c(
+    cfg$assessment_id,
+    cfg$model_class,
+    cfg$ss_base,
+    paste(cfg$scenarios, collapse = ", "),
+    cfg$reference_scenario,
+    cfg$ss_version,
+    pkg_versions[["R"]],
+    pkg_versions[["r4ss"]],
+    pkg_versions[["ss3diags"]],
+    pkg_versions[["sstruth"]],
+    pkg_versions[["diags"]],
+    pkg_versions[["FLRebuild"]],
+    pkg_versions[["ss3om"]],
+    as.character(isTRUE(cfg$run_code))
+  ),
+  stringsAsFactors = FALSE
+)
+
+write_content(
+  cfg,
+  "internal/inputs.tex",
+  c(
+    kable_fragment(inputs, caption = "Internal diagnostics inputs.", label = "tab:internal-inputs"),
+    ""
+  )
+)
+```
+
+```{r write-checks, include=FALSE}
+checks_lines <- c("% Internal diagnostic checks.", "")
+
+if (do_run) {
+  conv <- do.call(rbind, lapply(paths_ok, summarise_ss3_run))
+  checks_lines <- c(
+    checks_lines,
+    kable_fragment(
+      conv,
+      caption = "Convergence and Hessian summary by scenario.",
+      label = "tab:internal-convergence"
+    ),
+    ""
+  )
+}
+
+if (!is.null(ref_rep)) {
+  ll_comp <- likelihood_components_table(ref_rep)
+  if (!is.null(ll_comp) && NROW(ll_comp)) {
+    checks_lines <- c(
+      checks_lines,
+      kable_fragment(
+        ll_comp,
+        caption = "Likelihood components for the reference scenario.",
+        label = "tab:internal-ll-components"
+      ),
+      ""
+    )
+  }
+
+  near_bounds <- parameters_near_bounds_table(ref_rep)
+  if (!is.null(near_bounds) && NROW(near_bounds)) {
+    checks_lines <- c(
+      checks_lines,
+      kable_fragment(
+        near_bounds,
+        caption = "Estimated parameters within 2 percent of bounds (reference scenario).",
+        label = "tab:internal-near-bounds"
+      ),
+      ""
+    )
+  } else {
+    checks_lines <- c(
+      checks_lines,
+      "% No estimated parameters within 2 percent of bounds (reference scenario).",
+      ""
+    )
+  }
+
+  advice_pars <- advice_parameters_table(ref_rep)
+  if (!is.null(advice_pars) && NROW(advice_pars)) {
+    checks_lines <- c(
+      checks_lines,
+      kable_fragment(
+        advice_pars,
+        caption = "Advice-relevant parameters and asymptotic standard errors (reference scenario).",
+        label = "tab:internal-advice-pars"
+      ),
+      ""
+    )
+  }
+
+  comp_ess <- if (!is.null(st) && !is.null(st$ss_len) && NROW(st$ss_len$summary)) {
+    st$ss_len$summary
+  } else {
+    composition_ess_table(ref_rep)
+  }
+  if (!is.null(comp_ess) && NROW(comp_ess)) {
+    checks_lines <- c(
+      checks_lines,
+      kable_fragment(
+        comp_ess,
+        caption = "Length-composition effective sample size summary by fleet (sstruth::ssLen).",
+        label = "tab:internal-comp-ess"
+      ),
+      ""
+    )
+  }
+
+  if (!is.null(st)) {
+    ssu_sum <- ssu_fleet_summary(st$ssu)
+    if (is.null(ssu_sum) || !NROW(ssu_sum)) {
+      ssu_sum <- diag_fleet_summary(st$diag)
+    }
+    if (!is.null(ssu_sum) && NROW(ssu_sum)) {
+      checks_lines <- c(
+        checks_lines,
+        kable_fragment(
+          ssu_sum,
+          caption = "CPUE residual summary by fleet (sstruth::diagSS / ssU).",
+          label = "tab:internal-ssu-summary"
+        ),
+        ""
+      )
+    }
+  }
+
+  if (!is.null(st) && !is.null(st$run) && NROW(st$run$run_notes)) {
+    notes <- paste0(st$run$run_notes$type, ": ", st$run$run_notes$message)
+    checks_lines <- c(
+      checks_lines,
+      "% SS3 run notes from sstruth::ssRunSummary:",
+      paste0("% ", notes),
+      ""
+    )
+  }
+
+  idx_tune <- index_tuning_table(ref_rep)
+  if (!is.null(idx_tune) && NROW(idx_tune)) {
+    checks_lines <- c(
+      checks_lines,
+      kable_fragment(
+        idx_tune,
+        caption = "Index variance tuning and RMSE by CPUE fleet.",
+        label = "tab:internal-index-tuning"
+      ),
+      ""
+    )
+  }
+
+  runs_tbl <- cpue_runstest_table(ref_rep)
+  if (!is.null(runs_tbl) && NROW(runs_tbl)) {
+    checks_lines <- c(
+      checks_lines,
+      kable_fragment(
+        runs_tbl,
+        caption = "CPUE residual runs-test summary by fleet (ss3diags::SSrunstest).",
+        label = "tab:internal-runs-test"
+      ),
+      ""
+    )
+  }
+
+  if (!is.null(st) && !is.null(st$diag) && NROW(st$diag)) {
+    qic_tbl <- cpue_runs_qic_table(
+      st$diag,
+      scenario = gsub("Scenario-", "Scenario ", basename(reference_path(cfg)))
+    )
+    if (!is.null(qic_tbl) && NROW(qic_tbl)) {
+      checks_lines <- c(
+        checks_lines,
+        kable_fragment(
+          qic_tbl,
+          caption = "CPUE residual individual-chart runs tests by fleet (crossings and longest-run criteria).",
+          label = "tab:internal-runs-qic"
+        ),
+        ""
+      )
+    }
+  }
+
+  rec_proc <- recruitment_process_table(ref_rep)
+  if (!is.null(rec_proc$sigma_R)) {
+    checks_lines <- c(
+      checks_lines,
+      kable_fragment(
+        rec_proc$sigma_R,
+        caption = "Recruitment deviation summary statistics from SS3 report.",
+        label = "tab:internal-rec-sigma"
+      ),
+      ""
+    )
+  }
+  if (!is.null(rec_proc$rmse)) {
+    checks_lines <- c(
+      checks_lines,
+      kable_fragment(
+        rec_proc$rmse,
+        caption = "Recruitment-deviation RMSE and Durbin-Watson diagnostics.",
+        label = "tab:internal-rec-rmse"
+      ),
+      ""
+    )
+  }
+
+  if (!is.null(prof) && !is.null(prof$manifest) && NROW(prof$manifest)) {
+    checks_lines <- c(
+      checks_lines,
+      kable_fragment(
+        prof$manifest,
+        caption = "Likelihood-profile SS3 run manifest (M $\\times$ SR\\_surv\\_Beta grid).",
+        label = "tab:internal-profile-manifest"
+      ),
+      ""
+    )
+  } else {
+    pstatus <- read_profile_status(cfg)
+    if (!is.null(pstatus)) {
+      checks_lines <- c(
+        checks_lines,
+        paste0("% Likelihood profile job status: ", pstatus$status,
+               if (!is.null(pstatus$updated)) paste0(" (", pstatus$updated, ")") else ""),
+        paste0("% Results directory: ", profile_root(cfg)),
+        paste0("% Launch background job: launch_likelihood_profiles(cfg, background = TRUE)"),
+        paste0("% Or: Rscript appendices/R/run-likelihood-profiles.R --appendix-dir ",
+               cfg$appendix_dir, " --scenario ", cfg$reference_scenario, " --all"),
+        ""
+      )
+    } else {
+      checks_lines <- c(
+        checks_lines,
+        "% Likelihood profiles not yet available.",
+        paste0("% Run: Rscript appendices/R/run-likelihood-profiles.R --appendix-dir ",
+               cfg$appendix_dir, " --scenario ", cfg$reference_scenario, " --all"),
+        "% Or set launch_profiles = TRUE when rendering to queue a background job.",
+        ""
+      )
+    }
+  }
+} else {
+  checks_lines <- c(
+    checks_lines,
+    "% Set run_code = TRUE when SS3 directories are available.",
+    ""
+  )
+}
+
+write_content(cfg, "internal/checks.tex", checks_lines)
+```
+
+```{r write-output, include=FALSE}
+output_lines <- c(
+  "% Internal diagnostic figures and tables.",
+  ""
+)
+
+if (!is.null(ss3) && !is.null(ss3$pe)) {
+  ts_fig <- save_appendix_figure(
+    cfg,
+    plot_pe_ts(ss3$pe),
+    strand = "internal",
+    filename = "ss3-ts.png",
+    width = 8,
+    height = 8
+  )
+  if (!is.null(ts_fig) && file.exists(ts_fig)) {
+    output_lines <- c(
+      output_lines,
+      figure_fragment(
+        cfg,
+        ts_fig,
+        caption = "SS3 scenario time series relative to MSY reference points (from curveSS).",
+        label = "fig:internal-ss3-ts",
+        width = 0.92
+      ),
+      ""
+    )
+  }
+
+  phase_fig <- save_appendix_figure(
+    cfg,
+    plot_pe_phase(ss3$pe),
+    strand = "internal",
+    filename = "ss3-pe-phase.png",
+    width = 9,
+    height = 4
+  )
+  if (!is.null(phase_fig) && file.exists(phase_fig)) {
+    output_lines <- c(
+      output_lines,
+      figure_fragment(
+        cfg,
+        phase_fig,
+        caption = "Empirical production and curveSS yield curve versus spawning stock biomass.",
+        label = "fig:internal-ss3-pe-phase",
+        width = 0.92
+      ),
+      ""
+    )
+  }
+
+  save_curve_ss_paper_figures(cfg, ss3$pe)
+}
+
+if (!is.null(ref_rep)) {
+  fig_specs <- list()
+
+  if (!is.null(st) && !is.null(st$diag) && NROW(st$diag) &&
+      requireNamespace("sstruth", quietly = TRUE)) {
+    fig_specs <- c(
+      fig_specs,
+      list(
+        list(
+          plot = plot_index_fit(st$diag),
+          file = "cpue-fit.png",
+          caption = "Observed and expected CPUE indices (sstruth::diagSS).",
+          label = "fig:internal-cpue-fit",
+          width = 9,
+          height = 5,
+          fig_width = 0.92
+        ),
+        list(
+          plot = backend_plot_cpue_residuals(cfg, st$diag),
+          file = "cpue-residuals.png",
+          caption = "CPUE residuals by fleet (sstruth::plotResiduals).",
+          label = "fig:internal-cpue-residuals",
+          width = 9,
+          height = 6,
+          fig_width = 0.92
+        ),
+        list(
+          plot = backend_plot_cpue_std_residuals(cfg, st$diag),
+          file = "cpue-std-residuals.png",
+          caption = "Standardised CPUE residuals (sstruth::plotStdResiduals).",
+          label = "fig:internal-cpue-std-residuals",
+          width = 9,
+          height = 6,
+          fig_width = 0.92
+        ),
+        list(
+          plot = plot_cpue_runs_qic(
+            if (!is.null(st) && !is.null(st$diag)) {
+              st$diag
+            } else {
+              backend_diag_ss(cfg, reference_path(cfg))
+            },
+            scenario = gsub("Scenario-", "Scenario ", basename(reference_path(cfg)))
+          ),
+          file = "cpue-runs-test.png",
+          caption = "CPUE residual runs tests by fleet (individual-chart criteria; cf. figures.Rmd jara-runs).",
+          label = "fig:internal-cpue-runs",
+          width = 10,
+          height = 8,
+          fig_width = 0.95
+        ),
+        list(
+          plot = plot_cpue_runstest(ref_rep),
+          file = "cpue-runs-sig3.png",
+          caption = "CPUE residual runs tests with 3-sigma limits (ss3diags::SSrunstest).",
+          label = "fig:internal-cpue-runs-sig3",
+          width = 12,
+          height = 10,
+          fig_width = 0.95
+        )
+      )
+    )
+  } else {
+    fig_specs <- c(
+      fig_specs,
+      list(
+        list(
+          plot = plot_cpue_fit(ref_rep),
+          file = "cpue-fit.png",
+          caption = "Observed and expected CPUE indices (reference scenario).",
+          label = "fig:internal-cpue-fit",
+          width = 9,
+          height = 5,
+          fig_width = 0.92
+        ),
+        list(
+          plot = plot_cpue_residuals(ref_rep),
+          file = "cpue-residuals.png",
+          caption = "CPUE residuals by fleet (reference scenario).",
+          label = "fig:internal-cpue-residuals",
+          width = 9,
+          height = 6,
+          fig_width = 0.92
+        ),
+        list(
+          plot = plot_cpue_runs_qic(
+            if (!is.null(st) && !is.null(st$diag)) {
+              st$diag
+            } else {
+              backend_diag_ss(cfg, reference_path(cfg))
+            },
+            scenario = gsub("Scenario-", "Scenario ", basename(reference_path(cfg)))
+          ),
+          file = "cpue-runs-test.png",
+          caption = "CPUE residual runs tests by fleet (individual-chart criteria; cf. figures.Rmd jara-runs).",
+          label = "fig:internal-cpue-runs",
+          width = 10,
+          height = 8,
+          fig_width = 0.95
+        ),
+        list(
+          plot = plot_cpue_runstest(ref_rep),
+          file = "cpue-runs-sig3.png",
+          caption = "CPUE residual runs tests with 3-sigma limits (ss3diags::SSrunstest).",
+          label = "fig:internal-cpue-runs-sig3",
+          width = 12,
+          height = 10,
+          fig_width = 0.95
+        )
+      )
+    )
+  }
+
+  fig_specs <- c(
+    fig_specs,
+    list(
+      list(
+        plot = plot_likelihood_components(ref_rep),
+        file = "ll-components.png",
+        caption = "Likelihood components for the reference scenario.",
+        label = "fig:internal-ll-components",
+        width = 8,
+        height = 6,
+        fig_width = 0.88
+      ),
+      list(
+        plot = plot_recruitment_deviations(ref_rep),
+        file = "rec-devs.png",
+        caption = "Recruitment deviations for the reference scenario.",
+        label = "fig:internal-rec-devs",
+        width = 8,
+        height = 4,
+        fig_width = 0.92
+      ),
+      list(
+        plot = if (
+          !is.null(st) && !is.null(st$ss_len) && !is.null(st$ss_len$fit) &&
+            any(st$ss_len$fit$Fleet == 1L)
+        ) {
+          plot_length_comp_from_sslen(st$ss_len, fleet = 1L)
+        } else {
+          plot_length_comp_residuals(ref_rep, fleet = 1L)
+        },
+        file = "len-comp-residual-f1.png",
+        caption = "Length-composition residuals, fleet 1 (sstruth::ssLen when available).",
+        label = "fig:internal-len-comp-residual",
+        width = 8,
+        height = 4,
+        fig_width = 0.92
+      )
+    )
+  )
+
+  for (item in fig_specs) {
+    fig_path <- save_appendix_figure(
+      cfg,
+      item$plot,
+      strand = "internal",
+      filename = item$file,
+      width = item$width,
+      height = item$height
+    )
+    output_lines <- append_figure_tex(
+      cfg,
+      output_lines,
+      fig_path,
+      item$caption,
+      item$label,
+      width = item$fig_width
+    )
+  }
+
+  if (!is.null(prof)) {
+    prof_pe <- load_profile_pe(cfg, prof, maxY = 2.5)
+    prof_grid <- profile_grid_from_cfg(cfg)
+    m_vals <- prof_grid$M
+    if (is.null(m_vals) || !length(m_vals)) {
+      m_vals <- seq(0.5, 1.5, 0.25)
+    }
+    pfunc_profile <- if (!is.null(prof_pe)) {
+      pr_opts <- production_plot_opts(cfg, "profile")
+      save_appendix_figure(
+        cfg,
+        plot_production_functions(
+          prof_pe,
+          M_filter = m_vals,
+          title = "Production function (M $\\times$ SR\\_surv\\_Beta profile grid)",
+          show_trajectories = pr_opts$show_trajectories,
+          xlim = pr_opts$xlim,
+          ylim = pr_opts$ylim,
+          trajectory_yield_scale = pr_opts$trajectory_yield_scale
+        ),
+        strand = "internal",
+        filename = "production-functions-profile.png",
+        width = 9,
+        height = 6
+      )
+    } else {
+      NULL
+    }
+    if (!is.null(pfunc_profile) && file.exists(pfunc_profile)) {
+      output_lines <- append_figure_tex(
+        cfg,
+        output_lines,
+        pfunc_profile,
+        "Production functions over the M $\\times$ SR\\_surv\\_Beta likelihood-profile grid (curveSS; historical SSB--yield trajectory).",
+        "fig:internal-production-functions-profile",
+        width = 0.95
+      )
+    }
+    prof_figs <- list(
+      list(
+        plot = plot_likelihood_profile_total(prof),
+        file = "ll-profile-total.png",
+        caption = "Total log-likelihood profile over M and SR\\_surv\\_Beta fixed parameters.",
+        label = "fig:internal-ll-profile-total",
+        width = 8,
+        height = 5,
+        fig_width = 0.88
+      ),
+      list(
+        plot = plot_likelihood_profile_components(prof),
+        file = "ll-profile-components.png",
+        caption = "Likelihood-profile components by data source (M $\\times$ SR\\_surv\\_Beta grid).",
+        label = "fig:internal-ll-profile-components",
+        width = 10,
+        height = 12,
+        fig_width = 0.95
+      )
+    )
+    for (item in prof_figs) {
+      fig_path <- save_appendix_figure(
+        cfg,
+        item$plot,
+        strand = "internal",
+        filename = item$file,
+        width = item$width,
+        height = item$height
+      )
+      output_lines <- append_figure_tex(
+        cfg,
+        output_lines,
+        fig_path,
+        item$caption,
+        item$label,
+        width = item$fig_width
+      )
+    }
+  }
+}
+
+main_figs <- cfg$paper_figures
+if (is.null(main_figs) || !length(main_figs)) {
+  main_figs <- c("sma-fig-ts-1.png", "sma-fig-pe-phase-1.png")
+}
+
+for (fig in main_figs) {
+  src <- file.path(cfg$project_dir, "figs", fig)
+  if (file.exists(src)) {
+    output_lines <- c(
+      output_lines,
+      figure_fragment(
+        cfg,
+        src,
+        caption = gsub("-", " ", sub("\\.png$", "", fig)),
+        label = paste0("fig:internal-", sub("\\.png$", "", fig)),
+        width = 0.92
+      ),
+      ""
+    )
+  }
+}
+
+write_content(cfg, "internal/output.tex", output_lines)
+```
+
+```{r write-process-error, include=FALSE}
+process_lines <- c(
+  "% Process-error diagnostic outputs (curveSS).",
+  ""
+)
+
+if (do_run && !is.null(ss3) && !is.null(ss3$pe)) {
+  process_lines <- write_process_error_figures(cfg, ss3$pe, process_lines)
+} else {
+  process_lines <- c(
+    process_lines,
+    "% Set run_code = TRUE to populate process-error figures from curveSS().",
+    ""
+  )
+}
+
+write_content(cfg, "internal/process-error.tex", process_lines)
+```
+
+```{r write-interpretation, include=FALSE}
+write_content(
+  cfg,
+  "internal/interpretation.tex",
+  c(
+    "% Case-specific internal interpretation.",
+    "% Summarise whether management quantities are informed by data,",
+    "% whether likelihood profiles or Hessian checks indicate weak identifiability,",
+    "% and which issues should be carried to the robustness appendix.",
+    ""
+  )
+)
+```

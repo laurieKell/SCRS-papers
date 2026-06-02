@@ -1,0 +1,38 @@
+\begin{sidewaystable}[!p]
+\centering
+\small
+\caption{Minimum diagnostics checklist for SS3 shortfin mako scenarios and sensitivities (2026 ICCAT shark WG). A tick (\checkmark) indicates that the diagnostic has been applied and documented; a dash (--) indicates not applied or not documented. Run directories are listed in Table~\ref{tab:sma-scenario-runs}.}
+\label{tab:diag-checklist}
+\begin{tabular}{llcccccc}
+\toprule
+ & & \multicolumn{2}{c}{Scenario 1} & \multicolumn{2}{c}{Scenario 2} & \multicolumn{2}{c}{Scenario 3} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}
+Strand & Diagnostic & Base & Sens & Base & Sens & Base & Sens \\
+\midrule
+\multirow{8}{*}{Internal}
+ & Convergence: Hessian inverts, max gradient reported & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+ & Parameters at/near bounds listed & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+ & High parameter correlations identified & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+ & Selectivity and length-comp residual diagnostics (RMSE, runs) & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+ & CPUE residual diagnostics (joint residuals, RMSE, runs) & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+ & Effective sample size diagnostics (Francis / McAllister--Ianelli) & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+ & Likelihood profile for $\log R_0$ (data vs prior) & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+ & Jitter test for global convergence & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+\midrule
+\multirow{4}{*}{External}
+ & Maturity--selectivity / fecundity--selectivity overlays & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+ & Comparison of biomass and CPUE trends (survey perception) & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+ & Age-structure response to exploitation (numbers-at-age patterns) & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+ & External life-history consistency (growth, $M$, steepness) & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+\midrule
+\multirow{7}{*}{Robustness}
+ & Leave-one-out CPUE (single index inclusion/exclusion) & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+ & ASPM / ASPMdev (indices only, fixed selectivity) & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+ & Retrospective patterns (Mohn's $\rho$) & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+ & Hindcast prediction skill (HCXval, MASE) & \checkmark & -- & \checkmark & -- & \checkmark & -- \\
+ & Alternative $M$ and steepness (original vs modified PW) & -- & \checkmark & -- & \checkmark & -- & \checkmark \\
+ & Alternative initial $F$ prior & -- & \checkmark & -- & \checkmark & -- & \checkmark \\
+ & CAAL growth sensitivity (Scenario 3) & -- & -- & -- & -- & \checkmark & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{sidewaystable}

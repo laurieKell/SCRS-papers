@@ -1,0 +1,42 @@
+\contentsline {section}{\numberline {1}Introduction}{4}{section.2}%
+\contentsline {section}{\numberline {2}Diagnostic Framework}{4}{section.3}%
+\contentsline {subsection}{\numberline {2.1}Internal Diagnostics}{5}{subsection.6}%
+\contentsline {subsubsection}{\numberline {2.1.1}Process Error Diagnostics}{6}{subsubsection.7}%
+\contentsline {subsubsection}{\numberline {2.1.2}Internal versus External Stock--Recruitment Fitting}{7}{subsubsection.12}%
+\contentsline {subsection}{\numberline {2.2}External Diagnostics}{7}{subsection.13}%
+\contentsline {subsection}{\numberline {2.3}Robustness Diagnostics}{8}{subsection.14}%
+\contentsline {subsubsection}{\numberline {2.3.1}Continuous-Time and State-Space Formulations}{8}{subsubsection.15}%
+\contentsline {section}{\numberline {3}Scope}{9}{section.16}%
+\contentsline {section}{\numberline {4}Illustrative Examples from SS3 Shortfin Mako Scenarios}{10}{section.19}%
+\contentsline {subsection}{\numberline {4.1}Internal Diagnostics in the Case Study}{11}{subsection.24}%
+\contentsline {subsection}{\numberline {4.2}External Diagnostics in the Case Study}{14}{subsection.29}%
+\contentsline {subsection}{\numberline {4.3}Robustness Diagnostics in the Case Study}{15}{subsection.32}%
+\contentsline {paragraph}{Interpreting autocorrelation and red noise.}{16}{section*.37}%
+\contentsline {paragraph}{Heteroscedasticity and variance stability.}{17}{section*.38}%
+\contentsline {section}{\numberline {5}Lessons for SCRS Assessments}{17}{section.39}%
+\contentsline {section}{\numberline {6}Discussion}{18}{section.44}%
+\contentsline {subsection}{\numberline {6.1}Rebuilding-based diagnostics for bycatch species}{18}{subsection.45}%
+\contentsline {subsection}{\numberline {6.2}Observation versus Process Error Separation}{19}{subsection.46}%
+\contentsline {subsection}{\numberline {6.3}Reproducibility}{20}{subsection.50}%
+\contentsline {subsection}{\numberline {6.4}Appendices}{20}{subsection.51}%
+\contentsline {section}{\numberline {7}Conclusions}{20}{section.52}%
+\contentsline {section}{\numberline {A}Internal Diagnostics and Reproducible Workflow}{21}{appendix.53}%
+\contentsline {subsection}{\numberline {A.1}Required R Packages}{21}{subsection.54}%
+\contentsline {subsection}{\numberline {A.2}Inputs}{21}{subsection.57}%
+\contentsline {subsection}{\numberline {A.3}Standard Checks}{21}{subsection.60}%
+\contentsline {subsection}{\numberline {A.4}Process Error and Stock--Recruitment Diagnostics}{22}{subsection.83}%
+\contentsline {subsection}{\numberline {A.5}Diagnostic Output}{28}{subsection.90}%
+\contentsline {subsection}{\numberline {A.6}Interpretation}{40}{subsection.127}%
+\contentsline {section}{\numberline {B}External Diagnostics and Reproducible Workflow}{41}{appendix.128}%
+\contentsline {subsection}{\numberline {B.1}Required R Packages}{41}{subsection.129}%
+\contentsline {subsection}{\numberline {B.2}Evidence Outside the Likelihood}{41}{subsection.132}%
+\contentsline {subsection}{\numberline {B.3}Standard Checks}{41}{subsection.135}%
+\contentsline {subsection}{\numberline {B.4}Diagnostic Output}{42}{subsection.138}%
+\contentsline {subsection}{\numberline {B.5}Interpretation}{44}{subsection.145}%
+\contentsline {section}{\numberline {C}Robustness Diagnostics and Reproducible Workflow}{45}{appendix.146}%
+\contentsline {subsection}{\numberline {C.1}Required R Packages}{45}{subsection.147}%
+\contentsline {subsection}{\numberline {C.2}Scenario Register}{45}{subsection.150}%
+\contentsline {subsection}{\numberline {C.3}Standard Checks}{45}{subsection.153}%
+\contentsline {subsection}{\numberline {C.4}Diagnostic Output}{46}{subsection.164}%
+\contentsline {subsection}{\numberline {C.5}Best Assessment Versus Ensemble}{52}{subsection.179}%
+\contentsline {subsection}{\numberline {C.6}Interpretation}{54}{subsection.190}%

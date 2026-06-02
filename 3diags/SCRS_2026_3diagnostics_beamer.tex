@@ -1,0 +1,432 @@
+% Beamer aligned with main.tex
+% Compile from 3diags/: pdflatex SCRS_2026_3diagnostics_beamer.tex
+% Figures: figs/ (same as main.tex; self-contained for Overleaf)
+
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\documentclass[ignorenonframetext]{beamer}
+\newif\ifbibliography
+
+\setbeamertemplate{caption}[numbered]
+\setbeamertemplate{caption label separator}{: }
+\setbeamercolor{caption name}{fg=normal text.fg}
+\beamertemplatenavigationsymbolsempty
+\setbeamertemplate{part page}{%
+  \centering
+  \begin{beamercolorbox}[sep=16pt,center]{part title}
+    \usebeamerfont{part title}\insertpart\par
+  \end{beamercolorbox}}
+\setbeamertemplate{section page}{%
+  \centering
+  \begin{beamercolorbox}[sep=12pt,center]{section title}
+    \usebeamerfont{section title}\insertsection\par
+  \end{beamercolorbox}}
+\setbeamertemplate{subsection page}{%
+  \centering
+  \begin{beamercolorbox}[sep=8pt,center]{subsection title}
+    \usebeamerfont{subsection title}\insertsubsection\par
+  \end{beamercolorbox}}
+\widowpenalties 1 10000
+\raggedbottom
+\AtBeginPart{\frame{\partpage}}
+\AtBeginSection{%
+  \ifbibliography\else\frame{\sectionpage}\fi}
+\AtBeginSubsection{\frame{\subsectionpage}}
+
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp}
+\else
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\usetheme{Madrid}
+\usefonttheme{professionalfonts}
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{%
+  \usepackage{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath}}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{%
+  \IfFileExists{parskip.sty}{\usepackage{parskip}}{%
+    \setlength{\parindent}{0pt}%
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}}{%
+  \KOMAoptions{parskip=half}}
+\makeatother
+\setlength{\emergencystretch}{3em}
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{appendixnumberbeamer}
+\graphicspath{{figs/}}
+
+\definecolor{ICLBlue}{HTML}{003E74}
+\definecolor{ICLLightBlue}{HTML}{D4EFFC}
+\definecolor{ICLTeal}{HTML}{02893B}
+\setbeamercolor{palette primary}{bg=ICLBlue, fg=white}
+\setbeamercolor{palette secondary}{bg=ICLBlue, fg=white}
+\setbeamercolor{palette tertiary}{bg=ICLBlue, fg=white}
+\setbeamercolor{titlelike}{fg=ICLBlue}
+\setbeamercolor{title}{fg=white,bg=ICLBlue}
+\setbeamercolor{subtitle}{fg=ICLBlue}
+\setbeamercolor{author}{fg=ICLBlue}
+\setbeamercolor{institute}{fg=ICLBlue}
+\setbeamercolor{date}{fg=ICLBlue}
+\setbeamercolor{frametitle}{fg=ICLBlue,bg=ICLLightBlue}
+\setbeamerfont{frametitle}{series=\bfseries}
+\setbeamercolor{structure}{fg=ICLBlue}
+\setbeamercolor{section title}{fg=ICLBlue,bg=ICLLightBlue}
+\setbeamercolor{subsection title}{fg=ICLBlue,bg=ICLLightBlue}
+\setbeamercolor{item projected}{bg=ICLBlue, fg=white}
+\setbeamertemplate{navigation symbols}{}
+
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{}
+\urlstyle{same}
+\hypersetup{%
+  pdftitle={From Fitted to Fit-for-Purpose: three diagnostic strands},
+  pdfauthor={Laurence T. Kell and Massimiliano Cardinale},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\newcommand{\pfig}[2][]{%
+  \includegraphics[#1]{#2}}
+
+\title{\textbf{From Fitted to Fit-for-Purpose}}
+\subtitle{Intertwining Internal, External, and Robustness Diagnostics\\[0.4em]
+\small North Atlantic shortfin mako SS3 case study (SCRS/2026/074)}
+\author{Laurence T. Kell \& Massimiliano Cardinale}
+\institute{Imperial College London \and SLU Aqua, Lysekil}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}[plain]
+  \titlepage
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\section{Framework}
+
+\begin{frame}{Summary}
+  \small
+  Integrated assessments need more than convergence and fit.
+  \begin{itemize}
+    \item \textbf{Internal} --- consistency with likelihood, assumptions, and fitted data
+    \item \textbf{External} --- consistency with specified evidence \emph{outside} the likelihood
+    \item \textbf{Robustness} --- stability of advice under pre-specified alternative structures
+  \end{itemize}
+  \vspace{0.4em}
+  Main text: framework + selected SS3 shortfin mako examples.\\
+  Appendices: reproducible templates (plots, tables, \texttt{R} outputs).
+  \vspace{0.4em}
+  \begin{alertblock}{Best practice}
+    Minimum diagnostic checklist; separate verification, validation, uncertainty, and sensitivity; rebuilding-based diagnostics for non-retained bycatch stocks.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Why diagnostics beyond convergence?}
+  \begin{itemize}
+    \item Advice depends on latent quantities (SSB, recruitment, $F$) and equilibrium reference points
+    \item SS3 flexibility increases the gap between a \emph{well-fitted} model and \emph{fit-for-purpose} advice
+    \item A good fit alone is insufficient --- models should predict withheld data and be robust to structure
+  \end{itemize}
+  \vspace{0.4em}
+  \begin{alertblock}{Three intertwined strands}
+    Internal \textbullet\ External \textbullet\ Robustness --- complementary, not hierarchical
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Three diagnostic strands}
+  \small
+  \begin{table}
+    \centering
+    \begin{tabular}{@{}p{0.20\linewidth}p{0.36\linewidth}p{0.38\linewidth}@{}}
+      \toprule
+      \textbf{Class} & \textbf{Main question} & \textbf{SS3 examples} \\
+      \midrule
+      Internal &
+      Consistent with likelihood and fitted data? &
+      Convergence, Hessian, residuals, ESS, rec.\ devs, profiles \\
+      External &
+      Consistent with evidence outside likelihood? &
+      Life history, maturity--selectivity, survey perception \\
+      Robustness &
+      Advice stable under pre-specified alternatives? &
+      Retros, hindcasts, ensembles, sensitivities \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+  \vspace{0.4em}
+  \begin{itemize}
+    \item \textbf{Verification} --- implemented correctly and reproducibly?
+    \item \textbf{Validation} --- adequate for management use (hindcasts)?
+    \item \textbf{Uncertainty} (within model) vs.\ \textbf{sensitivity} (across structures)
+  \end{itemize}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\section{Internal diagnostics}
+
+\begin{frame}{Internal diagnostics}
+  \textbf{Beyond convergence}
+  \begin{itemize}
+    \item What data inform steepness, $M$, selectivity, catchability --- estimated, fixed, or prior-driven?
+    \item Distinguish \textbf{identifiability}, \textbf{estimability}, and \textbf{regularisation}
+    \item Likelihood profiles and Hessian checks; MCMC/\texttt{adnuts} when weakly identified
+  \end{itemize}
+  \vspace{0.4em}
+  \textbf{Minimum checklist}
+  \begin{itemize}
+    \item Convergence, gradient, Hessian, parameters near bounds
+    \item Residuals by data source; composition ESS; recruitment-deviation structure
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Process error diagnostics}
+  \small
+  Do production-function residuals behave like white noise, or reveal misspecification / non-stationarity?
+  \begin{enumerate}
+    \item \textbf{Temporal patterns} --- trends, regime shifts (STARS)
+    \item \textbf{Biomass-dependent bias} --- shape misspecification, heteroscedasticity
+    \item \textbf{ACF} --- white vs.\ \textbf{red noise}; uncertainty intervals may be too narrow
+    \item \textbf{Distribution} --- skewness, heavy tails, offset mean
+  \end{enumerate}
+  \vspace{0.3em}
+  In SS3, misspecification in $M$, selectivity, catchability is often absorbed into \textbf{recruitment deviations}.
+\end{frame}
+
+\begin{frame}{Internal vs.\ external stock--recruitment fitting}
+  \small
+  \textbf{Internal} (e.g.\ SAM): S--R estimated in state space with SSB--recruitment uncertainty correlated.
+  \vspace{0.3em}
+  \textbf{External post-hoc} (common with SS3 outputs):
+  \begin{itemize}
+    \item SSB and recruitment are model-dependent point estimates
+    \item Ignores estimation uncertainty and shared errors
+    \item Apparent S--R patterns can reflect assessment structure, not biology
+    \item ``Quirky'' recruitment series may be assessment artefacts
+  \end{itemize}
+  \vspace{0.3em}
+  Process error from external S--R fits may reflect \emph{model structure}, not true stochasticity.
+\end{frame}
+
+\begin{frame}{Production functions}
+  \[
+    SP_t = B_{t+1} - B_t + C_t
+  \]
+  \textbf{Explicit} (JABBA, SPiCT): production function estimated directly\\
+  \textbf{Implicit} (SS3): emergent from growth, recruitment, $M$, selectivity
+  \vspace{0.5em}
+  \begin{block}{Diagnostic classes are model-agnostic}
+    Implementation differs; the three strands apply to any assessment framework.
+  \end{block}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\section{Case study}
+
+\begin{frame}{Shortfin mako SS3 scenarios}
+  \small
+  Illustrative scenarios from the 2025 ICCAT SMA meeting; \textbf{not adopted for advice}.
+  \begin{itemize}
+    \item Catches dominated by juveniles/subadults; management state = mature-female SSB
+    \item Stress test: separate internal fit, external biological consistency, robustness of interpretation
+    \item Workflows: \texttt{r4ss}, \texttt{ss3diags}, \texttt{sstruth}, \texttt{FLRebuild}, \texttt{kobe}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Internal case study: MSY-scaled trajectories}
+  \centering
+  \pfig[width=0.92\linewidth,height=0.78\textheight,keepaspectratio]{sma-fig-ts-1.png}
+  \vspace{-0.2em}
+  {\scriptsize Catch tracks $F$ more closely than SSB; implied dynamics vs.\ reference points need scrutiny.}
+\end{frame}
+
+\begin{frame}{Internal case study: production phase plot}
+  \centering
+  \pfig[width=0.92\linewidth,height=0.78\textheight,keepaspectratio]{sma-fig-pe-phase-1.png}
+  \vspace{-0.2em}
+  {\scriptsize Realised surplus production does not always align with equilibrium curves.}
+\end{frame}
+
+\begin{frame}{External case study: maturity vs.\ selectivity}
+  \centering
+  \pfig[width=0.88\linewidth,height=0.72\textheight,keepaspectratio]{selmat.png}
+  \vspace{0.3em}
+  \begin{block}{Currency mismatch}
+    $F$ on immature ages; state on mature-female SSB --- weak surplus production on SSB may reflect age structure, not biology alone.
+  \end{block}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\section{Robustness}
+
+\begin{frame}{Robustness diagnostics}
+  \textbf{Separate}
+  \begin{itemize}
+    \item Estimation uncertainty \emph{conditional on} one accepted run
+    \item Structural sensitivity \emph{across} pre-specified scenarios
+  \end{itemize}
+  \vspace{0.3em}
+  \textbf{Report both}
+  \begin{itemize}
+    \item \textbf{Central tendencies} for targets ($B/B_{MSY}$, $F/F_{MSY}$, catch)
+    \item \textbf{Tail probabilities} for limits ($P(B<B_{lim})$, $P(F>F_{lim})$)
+  \end{itemize}
+  \vspace{0.3em}
+  \textbf{Cross-framework}: SPiCT/JABBA (explicit process error) vs.\ SS3/SAM (recruitment-dev partition) --- compare on common SSB surplus-production currency in ensembles.
+\end{frame}
+
+\begin{frame}{Robustness case study: residuals over time}
+  \centering
+  \pfig[width=0.92\linewidth,height=0.72\textheight,keepaspectratio]{sma-fig-res-time-1.png}
+  \vspace{-0.2em}
+  {\scriptsize STARS-type shading: candidate regime shifts in process residuals.}
+\end{frame}
+
+\begin{frame}{Robustness case study: autocorrelation}
+  \centering
+  \pfig[width=0.92\linewidth,height=0.62\textheight,keepaspectratio]{sma-fig-res-acf-1.png}
+  \vspace{0.3em}
+  \small
+  Low-lag ACF outside 95\% bounds $\Rightarrow$ \textbf{red noise}.\\
+  Forecast and rebuilding intervals based on white-noise assumptions may \textbf{underestimate risk}.
+\end{frame}
+
+\begin{frame}[shrink=5]{Red noise and heteroscedasticity}
+  \small
+  \textbf{Red noise} --- environmental forcing, omitted covariates, serial catch/effort errors, age-structure effects.
+  \vspace{0.3em}
+  \textbf{Heteroscedasticity} --- clustered large residuals in time or at low biomass:
+  \begin{itemize}
+    \item Misreporting, selectivity shifts treated as fixed
+    \item For bycatch stocks: higher variance at low biomass may be genuine demographic stochasticity
+  \end{itemize}
+  \vspace{0.3em}
+  \begin{alertblock}{Message}
+    Equilibrium MSY reference points from a single SS3 run are \textbf{conditional} --- gate with PE diagnostics, hindcasts, and ensembles.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Four-panel PE diagnostics}
+  \centering
+  \pfig[width=0.92\linewidth,height=0.62\textheight,keepaspectratio]{4panel.png}
+  \vspace{0.3em}
+  {\small Time \textbullet\ Biomass \textbullet\ ACF \textbullet\ Histogram --- standard internal/robustness panel set.}
+\end{frame}
+
+\begin{frame}{Retrospectives then hindcasts}
+  \textbf{Two-step workflow} (step~2 is forecast-only, \texttt{-nohess}, parallel peels):
+  \begin{enumerate}
+    \item \textbf{Retrospectives} --- full SS3 re-fit per peel
+    \item \textbf{Catch back-tests} --- forecast from peel \texttt{ss3.par}\\
+          \texttt{catchReported}, \texttt{fMeanFull}, \texttt{fZero}, \texttt{fMsy}
+  \end{enumerate}
+  \vspace{0.4em}
+  \small
+  One-step prediction errors from retros; management-scenario forecasts from hindcasts.\\
+  Status: 88/88 forecast runs collected (Scenarios 2--3).
+\end{frame}
+
+\begin{frame}[shrink=8]{Ensemble weights (Scenarios 1--3)}
+  \small
+  \begin{table}
+    \centering
+    \begin{tabular}{lrrrr}
+      \toprule
+      Scenario & Equal & ICES (Akaike) & CVindexmase & CVindexrho \\
+      \midrule
+      Scenario-1 & 0.33 & $\approx 0$ & --- & --- \\
+      Scenario-2 & 0.33 & $\approx 1$ & 1.00 & 1.00 \\
+      Scenario-3 & 0.33 & $\approx 0$ & $\approx 0$ & 0 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+  \vspace{0.3em}
+  MVLN ensemble combines scenario draws; compare equal, likelihood, and hindcast-skill weights.
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\section{Lessons and discussion}
+
+\begin{frame}[shrink=8]{SCRS diagnostic checklist}
+  \small
+  \begin{enumerate}
+    \item \textbf{Internal:} convergence, Hessian, bounds, residuals, ESS, information content
+    \item \textbf{External:} maturity--selectivity, survey perception, signals outside likelihood
+    \item \textbf{Robustness:} retros, hindcasts, sensitivities, ensembles; tails (limits) and medians (targets)
+    \item \textbf{Process error:} STARS/regimes, biomass bias, ACF, distribution; compare SS3 vs.\ JABBA/SPiCT partitions
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}{Rebuilding-based diagnostics (bycatch)}
+  \small
+  For non-retained shortfin mako, equilibrium $B_{MSY}$ / $F_{MSY}$ may be a poor primary objective.
+  \vspace{0.3em}
+  \begin{itemize}
+    \item Juvenile-dominated catches vs.\ mature-female SSB state
+    \item Report $B_{\mathrm{rebuild}}$, $T_{\mathrm{rebuild}}$, $P(B_T \ge B_{\mathrm{target}})$ under stated bycatch scenarios
+    \item Three strands map to production behaviour (internal), age structure (external), projection stability (robustness)
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Observation vs.\ process error}
+  \small
+  \textbf{Observation error} --- survey/measurement variation.\\
+  \textbf{Process error} --- environmental and demographic stochasticity, omitted biology.
+  \vspace{0.3em}
+  \begin{itemize}
+    \item SS3: input CVs for observations; most process variability in rec.\ devs
+    \item SPiCT: joint estimation of process and observation variance
+  \end{itemize}
+  \vspace{0.3em}
+  Practical checks: index residual structure; consistency across data types; hindcast skill.\\
+  If partition is uncertain $\Rightarrow$ conservative uncertainty and cross-framework ensembles.
+\end{frame}
+
+\begin{frame}{Reproducible appendices (\texttt{3diags/})}
+  \small
+  \begin{itemize}
+    \item \texttt{main.tex} + three appendix strands (\texttt{render\_appendices.R})
+    \item Internal / external / robustness templates with case-study outputs
+    \item Long runs: retros \checkmark; catch back-tests \checkmark; ensemble weights \checkmark; LOO CV setup only
+  \end{itemize}
+  \vspace{0.4em}
+  Packages should hold generic logic; appendix Rmd files remain thin case-study wrappers.
+\end{frame}
+
+\begin{frame}{Validation and advice implications}
+  \small
+  \begin{itemize}
+    \item Validate against observations where possible --- not only model estimates
+    \item Joint CPUE is a structural choice; alternative constructions as ensemble members
+    \item SS version can shift MSY quantities despite similar likelihoods
+    \item No single SS3 run to advice without agreed diagnostics
+    \item Non-stationary PE $\Rightarrow$ alternative hypotheses and ensembles
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Conclusions}
+  \begin{itemize}
+    \item Internal, external, and robustness diagnostics answer different questions
+    \item Shortfin mako illustrates age-structure and currency effects on PE interpretation
+    \item Routine SCRS reporting: three strands together; verification / validation / uncertainty / sensitivity separated
+    \item Reproducible appendices support WG review without overloading the main paper
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Acknowledgements}
+  \small
+  We thank ICCAT and participants in the 2025 Shortfin Mako Shark Stock Assessment Meeting,
+  and the 2026 Working Group on Stock Assessment Methods.
+  LK acknowledges support from Spanish surface longline producer organisations OPP-Burela,
+  OPNAPA, OPROMAR, and ORPAGU under the 2026 collaboration agreement.
+\end{frame}
+
+\end{document}

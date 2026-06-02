@@ -1,0 +1,254 @@
+---
+title: "Management back-test example"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+params:
+  study_id: "sma-2026"
+  scenario_id: "Scenario_2/Scn02_base"
+  peel_years: !expr c(0, 1, 5, 10, 20)
+  management_years: 100
+  run_retro: false
+  run_forecast: false
+  demo: false
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE
+)
+
+resolve_appendix_dir <- function() {
+  env <- Sys.getenv("DIAG_APPENDIX_DIR", unset = "")
+  if (nzchar(env)) {
+    return(normalizePath(env, winslash = "/", mustWork = TRUE))
+  }
+  candidates <- unique(c(
+    file.path(getwd(), "appendices"),
+    normalizePath(file.path(getwd(), ".."), winslash = "/", mustWork = FALSE),
+    normalizePath(file.path(getwd(), "..", ".."), winslash = "/", mustWork = FALSE)
+  ))
+  for (p in candidates) {
+    if (dir.exists(p) && file.exists(file.path(p, "studies", "sma-2026.R"))) {
+      return(normalizePath(p, winslash = "/", mustWork = TRUE))
+    }
+  }
+  stop(
+    "Could not find appendices directory. Set DIAG_APPENDIX_DIR or knit from 3diags/.",
+    call. = FALSE
+  )
+}
+appendix_dir <- resolve_appendix_dir()
+source(file.path(appendix_dir, "R", "backtest-example.R"))
+library(sstruth)
+library(ggplot2)
+```
+
+## Goal
+
+This is a **template back-test** you can copy for any stock:
+
+1. **Tail-cut retrospectives** — re-fit SS3 with the last 0, 1, 5, 10, 20 … years removed
+2. **Hindcast** — project with **reported catch** from each peel to the current assessment year
+3. **Management** — from that end state, project **F = 0** and **F = FMSY** for `r params$management_years` years
+4. **Collect** — one-step retro errors + forecast trajectories
+
+Implemented in [`sstruth::ssBacktest()`](https://github.com/laurieKell/sstruth) and helpers in `appendices/R/backtest-example.R`.
+
+## Configuration (generalise here)
+
+```{r config}
+cfg <- backtest_example_config(
+  appendix_dir = appendix_dir,
+  study_id = params$study_id,
+  scenario_id = params$scenario_id
+)
+cfg$peel_years <- params$peel_years
+cfg$management_years <- params$management_years
+
+if (isTRUE(params$demo)) {
+  cfg$study_id <- "sma-natl-demo"
+  cfg$ss_base <- "C:/active/flr/sstruth/data/ss3/sma-natl"
+  cfg$scenario_id <- "Scenario-2"
+  cfg$run_dir <- resolve_scenario_dir(cfg$ss_base, cfg$scenario_id)
+  cfg$scenario_label <- "Scenario-2 (demo)"
+  cfg$peel_years <- c(0, 1, 5, 10)
+  cfg$ss_exe <- file.path(cfg$ss_base, "ss3_win.exe")
+}
+
+knitr::kable(data.frame(
+  setting = c(
+    "Scenario", "Run directory", "Peel years (tail cut)",
+    "Management horizon", "Retro folder", "Forecast folder"
+  ),
+  value = c(
+    cfg$scenario_label,
+    cfg$run_dir,
+    paste(cfg$peel_years, collapse = ", "),
+    as.character(cfg$management_years),
+    cfg$retro_subdir,
+    file.path(cfg$retro_subdir, "<peel>", cfg$backtest_subdir, "<scenario>")
+  ),
+  stringsAsFactors = FALSE
+))
+```
+
+## Workflow
+
+```text
+run_dir/
+  starter.ss, Report.sso          # full assessment
+  retrospectives/
+    retro0/                        # full fit (reference)
+    retro-1/, retro-5/, ...        # tail-cut re-fits
+    retro-5/backtest/                # management mode (new runs)
+      catchReported/
+      fZero/
+      fMsy/
+    retro-5/catchReported/           # appendix mode (legacy; collector finds both)
+```
+
+When forecasts already exist on disk, use **`--collect` only** (no SS3 run).
+
+### Step 1 — Retrospectives (optional; needs SS3)
+
+Skip if `retrospectives/` already exists with converged peels.
+
+```r
+run_backtest_retros(cfg)
+# or: sstruth::ssBacktest(cfg$run_dir, peelYears = cfg$peel_years, runRetro = TRUE, runForecast = FALSE, collect = FALSE)
+```
+
+### Step 2 — Management projections (needs SS3; forecast-only)
+
+```r
+run_backtest_forecasts(cfg)
+# or: sstruth::runBacktestProjectionsPeels(retroRoot = file.path(cfg$run_dir, "retrospectives"), ...)
+```
+
+### Step 3 — Collect tables
+
+```{r run}
+do_retro <- isTRUE(params$run_retro)
+do_fcast <- isTRUE(params$run_forecast)
+pre_collected <- file.path(backtest_output_root(cfg), "collected.rds")
+if (
+  isTRUE(params$demo) &&
+  !do_retro && !do_fcast &&
+  file.exists(pre_collected)
+) {
+  bt <- readRDS(pre_collected)
+  message("Loaded pre-collected demo: ", pre_collected)
+} else {
+  bt <- run_backtest_example(
+    cfg,
+    run_retro = do_retro,
+    run_forecast = do_fcast,
+    collect = TRUE
+  )
+}
+out_root <- bt$root
+```
+
+Collected outputs: `r out_root`
+
+## Retrospective one-step errors
+
+Relative error in catch and F at the one-step forecast horizon (peel `0` = full fit).
+
+```{r retro-table}
+if (!is.null(bt$retro) && !is.null(bt$retro$oneStep) && NROW(bt$retro$oneStep)) {
+  knitr::kable(head(bt$retro$oneStep, 20))
+} else {
+  message("No retro one-step table. Run retros first, then --collect.")
+}
+```
+
+## B-ratio at forecast horizon
+
+```{r ratio-table}
+if (!is.null(bt$retro) && !is.null(bt$retro$ratioHorizon) && NROW(bt$retro$ratioHorizon)) {
+  knitr::kable(head(bt$retro$ratioHorizon, 12))
+}
+```
+
+## Forecast trajectories (spawn bio)
+
+```{r spawn-plot, fig.height = 7}
+if (!is.null(bt$forecasts) && NROW(bt$forecasts$trajectories)) {
+  df <- bt$forecasts$trajectories
+  df <- df[df$era == "FORE", , drop = FALSE]
+  ggplot(df, aes(x = year, y = spawn_bio, colour = forecast_scenario)) +
+    geom_line(linewidth = 0.8) +
+    facet_wrap(~ peel, labeller = label_both, scales = "free_y") +
+    labs(
+      title = paste("Spawn bio after back-test —", cfg$scenario_label),
+      x = "Year",
+      y = "Spawn bio",
+      colour = "Projection"
+    ) +
+    theme_minimal()
+} else {
+  message(
+    "No forecast trajectories. Run: ",
+    "Rscript appendices/R/run-backtest-example.R --run-forecast --collect"
+  )
+}
+```
+
+## CLI (copy for other stocks)
+
+```bash
+cd 3diags
+
+# Collect only (retros already on disk)
+Rscript appendices/R/run-backtest-example.R \
+  --appendix-dir appendices \
+  --scenario "Scenario_2/Scn02_base" \
+  --peel-years 0,1,5,10,20 \
+  --collect
+
+# Full run (retros + forecasts + collect) — requires SS3_EXE
+Rscript appendices/R/run-backtest-example.R \
+  --appendix-dir appendices \
+  --scenario "Scenario_2/Scn02_base" \
+  --all
+
+# Demo on local test data (sma-natl Scenario-2, retros exist)
+Rscript appendices/R/run-backtest-example.R \
+  --appendix-dir appendices \
+  --demo --collect
+```
+
+### Environment variables
+
+| Variable | Example |
+|----------|---------|
+| `DIAG_SS_BASE` | `P:/rfmo/iccat/2026/shark/Analysis/ss3` |
+| `DIAG_BACKTEST_SCENARIO` | `Scenario_2/Scn02_base` |
+| `DIAG_BACKTEST_PEEL_YEARS` | `0,1,5,10,20` |
+| `DIAG_MANAGEMENT_YEARS` | `100` |
+| `SS3_EXE` | path to `ss3` executable |
+
+## Generalise to another stock
+
+1. Copy `appendices/studies/_template.R` → `studies/my-stock.R` with `assessment_base` and scenario ids
+2. Set `DIAG_STUDY=my-stock` and `DIAG_BACKTEST_SCENARIO=<relative/path>`
+3. Run `--run-retro` once, then `--run-forecast --collect` (or `--all`)
+
+Same pattern works from R:
+
+```r
+source("appendices/R/backtest-example.R")
+cfg <- backtest_example_config(
+  appendix_dir = "appendices",
+  study_id = "sma-2026",
+  scenario_id = "Scenario_2/Scn02_base",
+  peel_years = c(0, 1, 5, 10, 20)
+)
+run_backtest_example(cfg, run_retro = FALSE, run_forecast = TRUE, collect = TRUE)
+```

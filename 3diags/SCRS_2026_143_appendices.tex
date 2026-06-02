@@ -1,0 +1,65 @@
+\documentclass[11pt,a4paper]{article}
+% SCRS/2026/143 — diagnostic appendices only (WG submission).
+% Main framework paper body is not included; compile from 3diags/:
+%   pdflatex SCRS_2026_143_appendices.tex
+%   bibtex SCRS_2026_143_appendices
+%   pdflatex SCRS_2026_143_appendices.tex
+%   pdflatex SCRS_2026_143_appendices.tex
+%
+% Or: Rscript appendices/R/render-wg-appendices.R --compile
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{setspace}
+\usepackage{authblk}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{natbib}
+\usepackage{float}
+\usepackage{rotating}
+
+\graphicspath{{figs/}{appendices/figs/}}
+\hypersetup{hypertexnames=false}
+\setstretch{1.0}
+\parskip=6pt
+\parindent=0pt
+\pagestyle{empty}
+
+\title{\textbf{Diagnostic Appendices for SCRS/2026/143}\\
+\large Internal, External, and Robustness Diagnostics\\
+\large Shortfin Mako Shark --- 2026 Working Group Assessment Runs}
+
+\author[1]{Laurence T. Kell}
+\author[2]{Massimiliano Cardinale}
+
+\affil[1]{Centre for Environmental Policy, Imperial College London}
+\affil[2]{Swedish University of Agricultural Sciences, Department of Aquatic Resources}
+
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{Purpose}
+
+These appendices accompany \textbf{SCRS/2026/143} (\emph{From Fitted to Fit-for-Purpose: Intertwining the Strands of Stock Assessment Diagnostics}). The main document presents the three-strand framework and a small set of illustrative figures; \textbf{this document holds the full reproducible diagnostic workflow} for the updated 2026 working-group SS3 scenarios.
+
+The main paper text is frozen for conversion to a peer-reviewed journal article. \textbf{All new analyses from the 2026 assessment runs belong here}---likelihood profiles, retrospectives, hindcasts, process-error panels, ensemble summaries, and interpretation---without modifying the framework narrative in SCRS/2026/143.
+
+\input{appendices/content/wg-scope.tex}
+
+\newpage
+\tableofcontents
+\newpage
+
+\appendix
+\input{appendices/internal-diagnostics.tex}
+\input{appendices/external-diagnostics.tex}
+\input{appendices/robustness-diagnostics.tex}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

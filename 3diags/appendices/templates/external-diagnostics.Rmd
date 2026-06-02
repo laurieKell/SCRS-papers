@@ -1,0 +1,345 @@
+---
+title: "External diagnostics content"
+output: latex_fragment
+params:
+  study_id: "sma-2026"
+  backend: "ss3"
+  study_label: ""
+  assessment_id: ""
+  model_class: "SS3"
+  ss_base: ""
+  assessment_base: ""
+  data_dir: ""
+  scenarios: !expr c(
+    "Scenario_1/Sc1_Base",
+    "Scenario_2/Scn02_base",
+    "Scenario_3/Sc3_Base"
+  )
+  reference_scenario: "Scenario_1/Sc1_Base"
+  retro_scenarios: !expr c("Scenario_2/Scn02_base", "Scenario_3/Sc3_Base")
+  scenario_register: !expr data.frame(id = character(0), label = character(0), purpose = character(0), stringsAsFactors = FALSE)
+  capabilities: !expr list()
+  jobs: !expr list()
+  paper_figures: !expr character(0)
+  profile_import_from: null
+  profile_scenario: "Scenario_1/Sc1_Base"
+  cv_scenario: "Scenario_1/Sc1_Base"
+  appendix_dir: ""
+  project_dir: ""
+  ss_version: ""
+  pe_ss3_sma_dir: ""
+  run_code: true
+  launch_profiles: false
+  strict_errors: true
+---
+
+<!--
+Required R packages (external diagnostics):
+
+  tier       package    role
+  --------   ---------  --------------------------------------------------
+  core       knitr      knit template; format LaTeX tables
+  run_code   r4ss       read SS3 output for maturity, selectivity, index fit
+  run_code   FLRebuild  curveSS(); production and reference points from SS3
+  run_code   ss3om      readFLSss3(); FLR stock objects from SS3
+  run_code   FLCandy    matSel(); maturity vs selectivity ogives
+  run_code   sstruth    diagSS, spSsbFromSs3, ssPeDiagnose, plotSpSsb
+  run_code   diags      extract CPUE/index series from SS3 diagnostics (.diagUss)
+  run_code   mpb        lowess smoothing and scaling for CPUE time-series plots
+  run_code   plyr       reshape index data (ddply)
+  run_code   reshape2   wide format for correlation plots (cast)
+  planned    ggplot2    CPUE time series, survey vs biomass, sel/mat, LBI
+  planned    GGally     pairwise scatter plots of index correlations (ggpairs)
+  planned    ggcorrplot correlation matrix with hierarchical clustering
+  planned    FLCore     FLR indicators and survey standardisation objects
+  planned    FLife      cross-correlations between indices (my_ccf)
+  planned    mydas      life-history indicators (LBI); my_smooth for ggpairs
+
+Source material:
+  - pe-ss3-sma/PE-sma-results.Rmd         (curveSS, readFLSss3)
+  - appendices/Rmd/examples/sma_south.Rmd (CPUE series, correlations, clusters, CCF)
+  - ss-ll/Rmd/sma_ll.Rmd                   (same CPUE chunks, active eval)
+  - ss-ll/Rmd/lbi.R                        (length-based indicators)
+-->
+
+```{r setup, include=FALSE}
+source(file.path(params$appendix_dir, "R", "appendix-utils.R"))
+cfg <- resolve_appendix_params(params)
+load_appendix_helpers(cfg)
+
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.path = file.path(cfg$appendix_dir, "figs", "external", "external-"),
+  fig.width = 8,
+  fig.height = 6,
+  dev = "png",
+  dpi = 200
+)
+
+dir.create(file.path(cfg$appendix_dir, "figs", "external"), recursive = TRUE, showWarnings = TRUE)
+paths <- scenario_paths(cfg)
+paths_ok <- paths[dir.exists(paths)]
+do_run <- isTRUE(cfg$run_code) && length(paths_ok) > 0L
+if (do_run) {
+  require_ok(length(paths_ok) > 0L, "No SS3 scenario directories found under ss_base", cfg)
+}
+ss3 <- if (do_run) load_assessment_case_study(cfg) else NULL
+st_ext <- if (do_run) load_assessment_external(cfg, reference_path(cfg)) else NULL
+cv_loo <- if (do_run) load_collected_crossvalidation(cfg) else NULL
+if (do_run) {
+  require_ok(!is.null(ss3$fls), "SS3 FLR load (ss3$fls)", cfg)
+}
+```
+
+```{r write-libraries, include=FALSE}
+external_libraries <- data.frame(
+  package = c(
+    "knitr", "r4ss", "sstruth", "FLRebuild", "ss3om", "FLCandy", "diags", "mpb",
+    "plyr", "reshape2", "ggplot2", "GGally", "ggcorrplot", "FLCore", "FLife", "mydas"
+  ),
+  role = c(
+    "Knit template; format LaTeX tables",
+    "Read SS3 output for maturity, selectivity, and index fit",
+    "diagSS, spSsbFromSs3, ssPeDiagnose; external CPUE and SP plots",
+    "curveSS(); production and reference points from SS3",
+    "readTruth / readFLSss3(); FLR stock objects from SS3",
+    "matSel(); maturity vs selectivity ogives",
+    "Extract CPUE/index series from SS3 diagnostics (.diagUss)",
+    "Lowess smoothing and scaling for CPUE time-series plots",
+    "Reshape index data (ddply)",
+    "Wide format for correlation plots (cast)",
+    "CPUE time series, survey vs biomass, sel/mat, LBI",
+    "Pairwise scatter plots of index correlations (planned)",
+    "Correlation matrix with hierarchical clustering (planned)",
+    "FLR indicators and survey standardisation objects (planned)",
+    "Cross-correlations between indices (planned)",
+    "Life-history indicators (LBI); my_smooth for ggpairs (planned)"
+  ),
+  tier = c(
+    "core", "run_code", "run_code", "run_code", "run_code", "run_code",
+    "run_code", "run_code", "run_code", "run_code", "run_code",
+    rep("planned", 5L)
+  ),
+  stringsAsFactors = FALSE
+)
+write_libraries(cfg, "external", external_libraries)
+```
+
+```{r write-evidence, include=FALSE}
+external_evidence <- data.frame(
+  diagnostic = c(
+    "Growth and maturity",
+    "Selectivity at age",
+    "Survey perception",
+    "Age structure",
+    "Spatial availability",
+    "Fishery behaviour / non-retention"
+  ),
+  evidence_source = c(
+    "Life-history inputs to SS3",
+    "Fleet selectivity ogives from SS3",
+    "Standardised CPUE / survey indices (external to likelihood if pre-processed)",
+    "Length and age composition data",
+    "Spatial models / availability (if used outside SS3)",
+    "Discard and non-retention regulations"
+  ),
+  model_quantity = c(
+    "Maturity-at-age vs selectivity-at-age",
+    "Selectivity ogive",
+    "Index fit and scaling",
+    "Age composition residuals",
+    "Recruitment / availability deviations",
+    "Catch-at-age and discard mortality"
+  ),
+  criterion = c(
+    "Fishing should not heavily precede 50 percent maturity on SSB scale",
+    "Selectivity peak below maturity implies lagged SSB response",
+    "Assessment trend coherent with survey perception",
+    "Older-fish / age-structure signals consistent with depletion narrative",
+    "No double-counting of spatial signal inside SS3",
+    "Removals dominated by juveniles while state is mature female SSB"
+  ),
+  status = c(
+    "Check",
+    "Mismatch flagged in case study",
+    "Check",
+    "Check",
+    "Check",
+    "Mismatch flagged in case study"
+  ),
+  stringsAsFactors = FALSE
+)
+
+write_content(
+  cfg,
+  "external/evidence.tex",
+  c(
+    kable_fragment(
+      external_evidence,
+      caption = "External evidence register for the shortfin mako SS3 case study.",
+      label = "tab:external-evidence"
+    ),
+    ""
+  )
+)
+```
+
+```{r write-checks, include=FALSE}
+checks_lines <- c("% External comparison tables.", "")
+
+if (!is.null(st_ext) && !is.null(st_ext$ss_pe)) {
+  pe_tbl <- ss_pe_diagnostics_table(
+    cbind(
+      scenario = gsub("Scenario-", "Scenario ", basename(reference_path(cfg))),
+      as.data.frame(st_ext$ss_pe, stringsAsFactors = FALSE),
+      stringsAsFactors = FALSE
+    )
+  )
+  if (!is.null(pe_tbl)) {
+    checks_lines <- c(
+      checks_lines,
+      kable_fragment(
+        pe_tbl,
+        caption = "Surplus-production vs SS3 process-error diagnostics (sstruth::ssPeDiagnose).",
+        label = "tab:external-sspe"
+      ),
+      ""
+    )
+  }
+}
+
+if (!is.null(cv_loo) && !is.null(cv_loo$results) && NROW(cv_loo$results)) {
+  cv_tbl <- cv_loo$results
+  num_cols <- vapply(cv_tbl, is.numeric, logical(1))
+  cv_tbl[num_cols] <- lapply(cv_tbl[num_cols], function(x) signif(x, 4))
+  checks_lines <- c(
+    checks_lines,
+    kable_fragment(
+      cv_tbl,
+      caption = "Leave-one-out CPUE cross-validation: change in total log-likelihood and terminal status vs reference (run-crossvalidation.R).",
+      label = "tab:external-cv-loo"
+    ),
+    ""
+  )
+}
+
+if (length(checks_lines) <= 2L) {
+  checks_lines <- c(
+    checks_lines,
+    "% CPUE/index correlations: see appendices/Rmd/examples/sma_south.Rmd",
+    "%   chunks: cpue-correlations, cpue-clusters, ccf",
+    ""
+  )
+}
+
+write_content(cfg, "external/checks.tex", checks_lines)
+```
+
+```{r write-output, include=FALSE}
+output_lines <- c("% External diagnostic figures.", "")
+
+if (!is.null(st_ext) && !is.null(st_ext$diag)) {
+  cpue_fig <- save_appendix_figure(
+    cfg,
+    plot_cpue_ts_external(st_ext$diag),
+    strand = "external",
+    filename = "cpue-ts.png",
+    width = 6,
+    height = 10
+  )
+  if (!is.null(cpue_fig) && file.exists(cpue_fig)) {
+    output_lines <- c(
+      output_lines,
+      figure_fragment(
+        cfg,
+        cpue_fig,
+        caption = "Standardised CPUE time series by fleet (sstruth::diagSS; lowess trend when mpb available).",
+        label = "fig:external-cpue-ts",
+        width = 0.72
+      ),
+      ""
+    )
+  }
+}
+
+if (!is.null(st_ext) && !is.null(st_ext$sp)) {
+  sp_fig <- save_appendix_figure(
+    cfg,
+    plot_sp_ssb_external(st_ext$sp, cfg = cfg),
+    strand = "external",
+    filename = "sp-ssb.png",
+    width = 8,
+    height = 5
+  )
+  if (!is.null(sp_fig) && file.exists(sp_fig)) {
+    output_lines <- c(
+      output_lines,
+      figure_fragment(
+        cfg,
+        sp_fig,
+        caption = "Empirical surplus production vs spawning stock biomass (sstruth::spSsbFromSs3).",
+        label = "fig:external-sp-ssb",
+        width = 0.88
+      ),
+      ""
+    )
+  }
+}
+
+if (!is.null(ss3) && !is.null(ss3$fls)) {
+  selmat_fig <- save_appendix_figure(
+    cfg,
+    plot_selmat_fls(ss3$fls, labels = scenario_labels(cfg)),
+    strand = "external",
+    filename = "selmat.png",
+    width = 8,
+    height = 5
+  )
+  if (!is.null(selmat_fig) && file.exists(selmat_fig)) {
+    output_lines <- c(
+      output_lines,
+      figure_fragment(
+        cfg,
+        selmat_fig,
+        caption = "Comparison of selectivity and maturity-at-age in the shortfin mako SS3 scenarios (from readFLSss3).",
+        label = "fig:external-selmat",
+        width = 0.88
+      ),
+      ""
+    )
+  }
+}
+
+selmat <- file.path(cfg$project_dir, "figs", "selmat.png")
+if (file.exists(selmat) && !any(grepl("fig:external-selmat", output_lines))) {
+  output_lines <- c(
+    output_lines,
+    figure_fragment(
+      cfg,
+      selmat,
+      caption = "Comparison of selectivity and maturity-at-age in the illustrative shortfin mako SS3 scenarios.",
+      label = "fig:external-selmat",
+      width = 0.88
+    ),
+    ""
+  )
+}
+
+write_content(cfg, "external/output.tex", output_lines)
+```
+
+```{r write-interpretation, include=FALSE}
+write_content(
+  cfg,
+  "external/interpretation.tex",
+  c(
+    "% Case-specific external interpretation.",
+    "% State which model outputs are consistent with life history and fishery evidence,",
+    "% which conflicts should be tested in the robustness appendix,",
+    "% and whether the biomass currency matches the age classes removed by fishing.",
+    ""
+  )
+)
+```

@@ -1,0 +1,32 @@
+\contentsline {section}{\numberline {1}Introduction}{4}{section.2}%
+\contentsline {section}{\numberline {2}Diagnostic Framework}{4}{section.3}%
+\contentsline {subsection}{\numberline {2.1}Internal Diagnostics}{4}{subsection.4}%
+\contentsline {subsection}{\numberline {2.2}External Diagnostics}{5}{subsection.5}%
+\contentsline {subsection}{\numberline {2.3}Robustness Diagnostics}{5}{subsection.6}%
+\contentsline {section}{\numberline {3}Scope}{6}{section.9}%
+\contentsline {section}{\numberline {4}Illustrative Examples from SS3 Shortfin Mako Scenarios}{8}{section.12}%
+\contentsline {subsection}{\numberline {4.1}Scope of the Examples}{8}{subsection.13}%
+\contentsline {subsection}{\numberline {4.2}Internal Diagnostics in the Case Study}{8}{subsection.14}%
+\contentsline {subsection}{\numberline {4.3}External Diagnostics in the Case Study}{10}{subsection.19}%
+\contentsline {subsection}{\numberline {4.4}Robustness Diagnostics in the Case Study}{11}{subsection.22}%
+\contentsline {section}{\numberline {5}Lessons for SCRS Assessments}{12}{section.27}%
+\contentsline {section}{\numberline {6}Discussion}{13}{section.31}%
+\contentsline {subsection}{\numberline {6.1}Rebuilding-based diagnostics for bycatch species}{13}{subsection.32}%
+\contentsline {subsection}{\numberline {6.2}Role of the appendices}{14}{subsection.33}%
+\contentsline {section}{\numberline {7}Conclusions}{14}{section.34}%
+\contentsline {section}{\numberline {A}Internal Diagnostics and Reproducible Workflow}{15}{appendix.36}%
+\contentsline {subsection}{\numberline {A.1}Inputs}{15}{subsection.37}%
+\contentsline {subsection}{\numberline {A.2}Standard Checks}{15}{subsection.40}%
+\contentsline {subsection}{\numberline {A.3}Diagnostic Output}{16}{subsection.43}%
+\contentsline {subsection}{\numberline {A.4}Interpretation}{18}{subsection.48}%
+\contentsline {section}{\numberline {B}External Diagnostics and Reproducible Workflow}{18}{appendix.49}%
+\contentsline {subsection}{\numberline {B.1}Evidence Outside the Likelihood}{18}{subsection.50}%
+\contentsline {subsection}{\numberline {B.2}Standard Checks}{18}{subsection.53}%
+\contentsline {subsection}{\numberline {B.3}Diagnostic Output}{18}{subsection.54}%
+\contentsline {subsection}{\numberline {B.4}Interpretation}{19}{subsection.57}%
+\contentsline {section}{\numberline {C}Robustness Diagnostics and Reproducible Workflow}{19}{appendix.58}%
+\contentsline {subsection}{\numberline {C.1}Scenario Register}{19}{subsection.59}%
+\contentsline {subsection}{\numberline {C.2}Standard Checks}{19}{subsection.62}%
+\contentsline {subsection}{\numberline {C.3}Diagnostic Output}{20}{subsection.63}%
+\contentsline {subsection}{\numberline {C.4}Best Assessment Versus Ensemble}{21}{subsection.68}%
+\contentsline {subsection}{\numberline {C.5}Interpretation}{21}{subsection.69}%

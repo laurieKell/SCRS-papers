@@ -1,0 +1,55 @@
+\section{Internal Diagnostics and Reproducible Workflow}
+\label{app:internal}
+
+Internal diagnostics evaluate whether the fitted model is consistent with its likelihood,
+parameterisation, and data inputs. This appendix provides a reproducible structure for
+detailed case-study reporting. Generic computation should live in R packages; case-study
+scripts should load inputs, call package functions, record software versions, and write
+tables and figures into the content files below.
+
+\subsection{Required R Packages}
+
+\input{appendices/content/internal/libraries.tex}
+
+\subsection{Inputs}
+
+Record the accepted model run, principal sensitivities, software versions, and data
+objects used to create this appendix.
+
+\input{appendices/content/internal/inputs.tex}
+
+\subsection{Standard Checks}
+
+The minimum internal checklist should include:
+
+\begin{itemize}
+  \item convergence status, maximum gradient, Hessian status, and parameters near bounds;
+  \item likelihood components and evidence for conflicts among data sources;
+  \item residual diagnostics for indices and composition data;
+  \item effective sample size diagnostics for composition data;
+  \item likelihood profiles or equivalent information-content diagnostics for advice-relevant quantities;
+  \item recruitment deviations and whether stock--recruitment assumptions are informed by data;
+  \item process-error diagnostics: residuals versus time, biomass, ACF, and distributional properties (Appendix~\ref{app:internal}, process-error outputs).
+\end{itemize}
+
+\input{appendices/content/internal/checks.tex}
+
+\subsection{Process Error and Stock--Recruitment Diagnostics}
+
+Process-error diagnostics follow the four-panel structure described in Section~2.1 of the main text: temporal patterns (including regime-shift filters such as STARS), biomass-dependent bias, autocorrelation structure, and distributional properties. Where stock--recruitment relationships are fitted externally to assessment outputs, report whether uncertainty in SSB and recruitment was propagated; internal state-space formulations (e.g.\ SAM) should be distinguished from post-hoc fits to SS3 point estimates.
+
+\input{appendices/content/internal/process-error.tex}
+
+\subsection{Diagnostic Output}
+
+Tables, figures, and code-generated summaries can be added to the file below as they
+become available.
+
+\input{appendices/content/internal/output.tex}
+
+\subsection{Interpretation}
+
+Summarise whether the model is technically well fitted, which quantities are weakly
+identified, and which issues should be carried forward to the robustness appendix.
+
+\input{appendices/content/internal/interpretation.tex}

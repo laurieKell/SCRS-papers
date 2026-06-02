@@ -1,0 +1,48 @@
+This is BibTeX, Version 0.99e
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: SCRS_2026_3diagnostics_Kell_Cardinale.aux
+Reallocating 'name_of_file' (item size: 1) to 9 items.
+The style file: plainnat.bst
+Reallocating 'name_of_file' (item size: 1) to 9 items.
+Database file #1: refs.bib
+You've used 16 entries,
+            2773 wiz_defined-function locations,
+            717 strings with 9252 characters,
+and the built_in function-call counts, 8695 in all, are:
+= -- 761
+> -- 662
+< -- 6
++ -- 223
+- -- 207
+* -- 797
+:= -- 1417
+add.period$ -- 64
+call.type$ -- 16
+change.case$ -- 117
+chr.to.int$ -- 16
+cite$ -- 32
+duplicate$ -- 319
+empty$ -- 575
+format.name$ -- 227
+if$ -- 1747
+int.to.chr$ -- 1
+int.to.str$ -- 1
+missing$ -- 14
+newline$ -- 104
+num.names$ -- 64
+pop$ -- 188
+preamble$ -- 1
+purify$ -- 100
+quote$ -- 0
+skip$ -- 262
+stack$ -- 0
+substring$ -- 268
+swap$ -- 16
+text.length$ -- 1
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 176
+warning$ -- 0
+while$ -- 67
+width$ -- 0
+write$ -- 246

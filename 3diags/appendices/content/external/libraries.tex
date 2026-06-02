@@ -1,0 +1,31 @@
+\begin{table}
+
+\caption{\label{tab:external-libraries}Required R packages for external diagnostics.}
+\centering
+\begin{tabular}[t]{llll}
+\toprule
+package & role & tier & installed\\
+\midrule
+knitr & Knit template; format LaTeX tables & core & 1.51\\
+r4ss & Read SS3 output for maturity, selectivity, and index fit & run\_code & 1.53.0\\
+sstruth & diagSS, spSsbFromSs3, ssPeDiagnose; external CPUE and SP plots & run\_code & 0.0.0.9020\\
+FLRebuild & curveSS(); production and reference points from SS3 & run\_code & 0.1.0\\
+ss3om & readTruth / readFLSss3(); FLR stock objects from SS3 & run\_code & 0.5.3.9004\\
+\addlinespace
+FLCandy & matSel(); maturity vs selectivity ogives & run\_code & 1.7.1\\
+diags & Extract CPUE/index series from SS3 diagnostics (.diagUss) & run\_code & 2.2.1\\
+mpb & Lowess smoothing and scaling for CPUE time-series plots & run\_code & 3.5.0\\
+plyr & Reshape index data (ddply) & run\_code & 1.8.9\\
+reshape2 & Wide format for correlation plots (cast) & run\_code & 1.4.5\\
+\addlinespace
+ggplot2 & CPUE time series, survey vs biomass, sel/mat, LBI & run\_code & 4.0.3\\
+GGally & Pairwise scatter plots of index correlations (planned) & planned & 2.4.0\\
+ggcorrplot & Correlation matrix with hierarchical clustering (planned) & planned & 0.1.4.1\\
+FLCore & FLR indicators and survey standardisation objects (planned) & planned & 2.6.29.9001\\
+FLife & Cross-correlations between indices (planned) & planned & 3.4.0\\
+\addlinespace
+mydas & Life-history indicators (LBI); my\_smooth for ggpairs (planned) & planned & 1.2.2\\
+\bottomrule
+\end{tabular}
+\end{table}
+

@@ -1,0 +1,375 @@
+---
+title: "SS3 curve diagnostics — SMA 2026 scenarios"
+author: "3diags"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 9,
+  fig.height = 6,
+  message = FALSE,
+  warning = FALSE
+)
+
+appendix_dir_default <- normalizePath(
+  file.path(dirname(knitr::current_input()), ".."),
+  winslash = "/",
+  mustWork = TRUE
+)
+appendix_dir <- normalizePath(
+  Sys.getenv("DIAG_APPENDIX_DIR", unset = appendix_dir_default),
+  winslash = "/",
+  mustWork = TRUE
+)
+project_dir <- normalizePath(
+  Sys.getenv("DIAG_PROJECT_DIR", unset = dirname(appendix_dir)),
+  winslash = "/",
+  mustWork = TRUE
+)
+fig_dir <- file.path(appendix_dir, "figs", "internal")
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+pe_mode <- Sys.getenv("DIAG_PE_MODE", unset = "relative")
+if (!pe_mode %in% c("log", "relative", "diff")) {
+  pe_mode <- "relative"
+}
+```
+
+## Overview
+
+Internal diagnostic panel for the three **2026 ICCAT shark WG** base scenarios,
+using [`sstruth`](https://github.com/laurieKell/sstruth):
+
+1. `ssCurve()` — equilibrium curves and time series
+2. Kobe phase plots
+3. Production function (yield vs SSB)
+4. Yield vs SSB trajectories on the production function
+5. Surplus production vs SSB — **`sprod`** (SS3 / r4ss yield4) and **`sp_ssb`** (SSB-based)
+6. Process-error (PE) diagnostics — `pe_mode`: `log`, `relative` \((y-x)/x\), or `diff` \((y-x)\)
+7. Four-panel PE residuals (time, vs SSB, ACF, histogram)
+
+```{r config}
+sstruth_root <- Sys.getenv("SSTRUTH_ROOT", unset = "C:/active/flr/sstruth")
+if (dir.exists(sstruth_root) && requireNamespace("pkgload", quietly = TRUE)) {
+  pkgload::load_all(sstruth_root, quiet = TRUE)
+}
+library(sstruth)
+library(ggplot2)
+
+# Compatibility shim for older diags installs where parallelLapply is unavailable.
+if (requireNamespace("diags", quietly = TRUE) &&
+    !("parallelLapply" %in% getNamespaceExports("diags"))) {
+  assignInNamespace(
+    x = ".ssParallel",
+    value = function(x, fun, parallel = TRUE, workers = NULL, ..., .nullOk = TRUE) {
+      lapply(x, fun, ...)
+    },
+    ns = "sstruth"
+  )
+}
+
+study_id <- Sys.getenv("DIAG_STUDY", unset = "sma-2026")
+spec_path <- file.path(appendix_dir, "studies", paste0(study_id, ".R"))
+if (!file.exists(spec_path)) {
+  stop("Study spec not found: ", spec_path, call. = FALSE)
+}
+source(spec_path, local = TRUE)
+spec <- study_spec()
+
+ss_base <- Sys.getenv("DIAG_SS_BASE", unset = spec$paths$assessment_base)
+scenario_ids <- spec$scenarios$ids
+scenario_labels <- spec$scenarios$register$label[
+  match(scenario_ids, spec$scenarios$register$id)
+]
+
+runs <- ssRuns(ss_base, ids = scenario_ids)
+has_data <- NROW(runs) > 0L && all(dir.exists(runs$path))
+
+if (!has_data) {
+  knitr::opts_chunk$set(eval = FALSE)
+  stop(
+    "No SS3 runs found under ", ss_base,
+    " for scenarios: ", paste(scenario_ids, collapse = ", "),
+    call. = FALSE
+  )
+}
+
+message("SS base: ", ss_base)
+message("Scenarios: ", paste(scenario_ids, collapse = ", "))
+```
+
+## i) Read objects with `ssCurve()`
+
+```{r load}
+load_curve_one <- function(id, path) {
+  out <- curveSS(path, cache = TRUE)
+  list(
+    tseries = cbind(run = id, out$tseries, stringsAsFactors = FALSE),
+    curve = cbind(run = id, out$curve, stringsAsFactors = FALSE),
+    refpts = cbind(run = id, out$refpts, stringsAsFactors = FALSE)
+  )
+}
+
+pieces <- lapply(seq_len(nrow(runs)), function(i) {
+  load_curve_one(runs$id[[i]], runs$path[[i]])
+})
+
+pe <- list(
+  tseries = do.call(rbind, lapply(pieces, `[[`, "tseries")),
+  curve = do.call(rbind, lapply(pieces, `[[`, "curve")),
+  refpts = do.call(rbind, lapply(pieces, `[[`, "refpts"))
+)
+rownames(pe$tseries) <- NULL
+rownames(pe$curve) <- NULL
+rownames(pe$refpts) <- NULL
+
+# Drop zero-yield equilibrium grid points (SS3 padding rows)
+pe$curve <- pe$curve[
+  is.finite(pe$curve$ssb) & is.finite(pe$curve$yield) & pe$curve$yield > 0,
+  ,
+  drop = FALSE
+]
+
+kobe <- ssKobe(runs, parallel = FALSE)
+
+run_col <- "run"
+stocks <- sort(unique(pe$tseries[[run_col]]))
+
+# Friendly facet labels where available
+label_map <- stats::setNames(scenario_labels, scenario_ids)
+if (!is.null(run_col) && run_col %in% names(pe$tseries)) {
+  pe$tseries$scenario_label <- label_map[pe$tseries[[run_col]]]
+  pe$tseries$scenario_label[is.na(pe$tseries$scenario_label)] <-
+    pe$tseries[[run_col]][is.na(pe$tseries$scenario_label)]
+  pe$curve$scenario_label <- label_map[pe$curve[[run_col]]]
+  pe$curve$scenario_label[is.na(pe$curve$scenario_label)] <-
+    pe$curve[[run_col]][is.na(pe$curve$scenario_label)]
+  kobe$scenario_label <- label_map[kobe[[run_col]]]
+  kobe$scenario_label[is.na(kobe$scenario_label)] <-
+    kobe[[run_col]][is.na(kobe$scenario_label)]
+  facet_col <- "scenario_label"
+} else {
+  facet_col <- run_col
+}
+
+message("Loaded ", length(stocks), " scenario(s)")
+```
+
+## ii) Kobe phase plots
+
+```{r kobe, fig.cap = "Kobe phase plot by scenario (equilibrium F/FMSY vs B/BMSY locus in steel blue)."}
+p_kobe <- plotSsKobePhase(
+  kobe,
+  run_col = run_col,
+  pe = pe,
+  show_equilibrium = TRUE,
+  show_msy = TRUE,
+  title = "Kobe phase plot — SMA 2026 base scenarios"
+)
+if (!is.null(facet_col) && facet_col %in% names(kobe)) {
+  # kobePhase facets on run_col; labels stay as ids unless kobe supports labels
+}
+print(p_kobe)
+ggplot2::ggsave(
+  file.path(fig_dir, "ss-curve-kobe-phase.png"),
+  p_kobe, width = 9, height = 6, dpi = 200
+)
+```
+
+## iii) Production functions
+
+```{r production, fig.cap = "Equilibrium production function by scenario (single panel, colour = scenario)."}
+p_prod <- plotSsCurveProduction(
+  pe,
+  run_col = facet_col,
+  colour_label = "Scenario",
+  title = "Production function — SMA 2026 base scenarios"
+)
+print(p_prod)
+ggplot2::ggsave(
+  file.path(fig_dir, "ss-curve-production.png"),
+  p_prod, width = 9, height = 6, dpi = 200
+)
+```
+
+## iv) SS3 total-biomass SP vs SSB
+
+```{r sp-ss3, fig.cap = "SS3 total-biomass surplus production vs SSB (sprod)."}
+p_sp_ss3 <- plotSsCurveSpSsb(
+  pe,
+  run_col = facet_col,
+  sp_col = "sprod",
+  colour_label = "Scenario",
+  show_production = TRUE,
+  title = "SS3 total-biomass SP vs SSB — SMA 2026 base scenarios"
+)
+print(p_sp_ss3)
+ggplot2::ggsave(
+  file.path(fig_dir, "ss-curve-sp-ss3.png"),
+  p_sp_ss3, width = 9, height = 6, dpi = 200
+)
+```
+
+## v) Yield vs SSB trajectories
+
+```{r trajectory, fig.cap = "Observed yield vs SSB on the equilibrium curve."}
+p_traj <- plotSsCurveYieldTrajectory(
+  pe,
+  run_col = run_col,
+  title = "Yield vs SSB trajectory — SMA 2026 base scenarios"
+)
+print(p_traj)
+ggplot2::ggsave(
+  file.path(fig_dir, "ss-curve-yield-trajectory.png"),
+  p_traj, width = 9, height = 6, dpi = 200
+)
+```
+
+## vi) Surplus production vs SSB
+
+Two empirical series are in `pe$tseries`:
+
+- **`sprod`**: $\mathrm{Bio\_all}_{t+1} - \mathrm{Bio\_all}_t + C_t$ (matches `r4ss::SSplotYield()` / `yield4_surplus_production.png` y-axis, plotted vs SSB)
+- **`sp_ssb`**: $\mathrm{SSB}_{t+1} - \mathrm{SSB}_t + C_t$
+
+```{r sp-cols}
+sp_cols <- intersect(
+  c("year", "bio_all", "ssb", "yield", "sprod", "sp_ssb"),
+  names(pe$tseries)
+)
+knitr::kable(head(pe$tseries[sp_cols], 6), digits = 1)
+```
+
+### SSB-based SP
+
+```{r sp-ssb, fig.cap = "SSB-based surplus production vs SSB (sp_ssb)."}
+p_sp <- plotSsCurveSpSsb(
+  pe,
+  run_col = facet_col,
+  sp_col = "sp_ssb",
+  colour_label = "Scenario",
+  show_production = TRUE,
+  title = "SSB-based surplus production vs SSB — SMA 2026 base scenarios"
+)
+print(p_sp)
+ggplot2::ggsave(
+  file.path(fig_dir, "ss-curve-sp-ssb.png"),
+  p_sp, width = 9, height = 6, dpi = 200
+)
+```
+
+### Side-by-side comparison
+
+```{r sp-compare, fig.cap = "SS3 vs SSB surplus production.", fig.width = 12, fig.height = 5}
+p_sp_cmp <- plotSsCurveSpCompare(
+  pe,
+  run_col = facet_col,
+  show_production = TRUE,
+  colour_label = "Scenario"
+)
+print(p_sp_cmp)
+ggplot2::ggsave(
+  file.path(fig_dir, "ss-curve-sp-compare.png"),
+  p_sp_cmp, width = 12, height = 5, dpi = 200
+)
+```
+
+## vii) Process-error diagnostics
+
+Relative scale default: `r pe_mode` (`log`, `relative` = \((y-x)/x\), or `diff` = \(y-x\)).
+
+```{r pe-diag, fig.cap = "Process-error diagnostics by scenario (SS equilibrium vs PT fit)."}
+pe_panels <- lapply(stocks, function(st) {
+  one <- list(
+    tseries = pe$tseries[pe$tseries[[run_col]] == st, , drop = FALSE],
+    curve = pe$curve[pe$curve[[run_col]] == st, , drop = FALSE],
+    refpts = pe$refpts[pe$refpts[[run_col]] == st, , drop = FALSE]
+  )
+  st_label <- label_map[[st]] %||% st
+  diag <- plotSsPeDiagnostic(one, shapePt = 0.5, pe_mode = pe_mode)
+  if (requireNamespace("patchwork", quietly = TRUE)) {
+    patchwork::wrap_plots(
+      diag$ssb + ggplot2::labs(subtitle = st_label),
+      diag$pe,
+      ncol = 2,
+      widths = c(1.2, 1)
+    )
+  } else {
+    diag
+  }
+})
+
+if (requireNamespace("patchwork", quietly = TRUE)) {
+  p_pe <- patchwork::wrap_plots(pe_panels, ncol = 1)
+  print(p_pe)
+  ggplot2::ggsave(
+    file.path(fig_dir, "ss-curve-pe-diagnostics.png"),
+    p_pe, width = 11, height = 12, dpi = 200
+  )
+} else {
+  pe_panels
+}
+```
+
+### Diagnostic table
+
+```{r pe-table}
+tab <- do.call(rbind, lapply(stocks, function(st) {
+  one <- list(
+    tseries = pe$tseries[pe$tseries[[run_col]] == st, , drop = FALSE],
+    curve = pe$curve[pe$curve[[run_col]] == st, , drop = FALSE],
+    refpts = pe$refpts[pe$refpts[[run_col]] == st, , drop = FALSE]
+  )
+  d <- ssPeDiagnose(one, shapePt = 0.5)
+  data.frame(
+    scenario = st,
+    label = label_map[[st]] %||% st,
+    curve_cor = d$curve_cor,
+    curve_rel_rmse = d$curve_rel_rmse,
+    pe_cor_ssb = d$pe_cor_ssb,
+    likely_misspecified = d$likely_misspecified,
+    stringsAsFactors = FALSE
+  )
+}))
+knitr::kable(tab, digits = 3)
+utils::write.csv(tab, file.path(fig_dir, "ss-curve-pe-diagnostics.csv"), row.names = FALSE)
+```
+
+## viii) Four-panel process-error residuals
+
+```{r pe-four, fig.cap = "Four-panel process-error diagnostics (all scenarios)."}
+p_four <- plotSsPeFourPanel(pe, pe_mode = pe_mode)
+if (!is.null(p_four$panel)) {
+  print(p_four$panel)
+  ggplot2::ggsave(
+    file.path(fig_dir, "ss-curve-pe-four-panel.png"),
+    p_four$panel,
+    width = 10,
+    height = 12,
+    dpi = 200
+  )
+}
+```
+
+Alternative scales:
+
+```bash
+DIAG_PE_MODE=relative Rscript appendices/R/run-curve-diagnostics.R --appendix-dir appendices
+DIAG_PE_MODE=diff     Rscript appendices/R/run-curve-diagnostics.R --appendix-dir appendices
+DIAG_PE_MODE=log      Rscript appendices/R/run-curve-diagnostics.R --appendix-dir appendices
+```
+
+## Data source
+
+| Item | Path |
+|------|------|
+| SS3 base | `r ss_base` |
+| Scenarios | `r paste(scenario_ids, collapse = ", ")` |
+| Figures | `r fig_dir` |

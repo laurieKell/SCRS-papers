@@ -1,0 +1,49 @@
+\section{External Diagnostics and Reproducible Workflow}
+\label{app:external}
+
+External diagnostics evaluate whether model outputs are consistent with specified
+evidence outside the fitted likelihood. In this appendix, ``consistent'' should be
+defined against explicit data sources or biological constraints, rather than by informal
+judgement. Generic code for reading, plotting, and comparing indicators should live in
+packages; case-study scripts should map model outputs to external evidence and write
+results into the content files below.
+
+\subsection{Required R Packages}
+
+\input{appendices/content/external/libraries.tex}
+
+\subsection{Evidence Outside the Likelihood}
+
+List the external evidence used in the case study:
+
+\begin{itemize}
+  \item life-history information, including growth, maturity, natural mortality, and longevity;
+  \item fishery-independent survey trends, spatial indicators, and availability information;
+  \item fishery behaviour, selectivity evidence, discard or bycatch information;
+  \item environmental or ecosystem drivers already used in index standardisation;
+  \item demographic indicators such as mature fraction, older-fish indicators, or age structure.
+\end{itemize}
+
+\input{appendices/content/external/evidence.tex}
+
+\subsection{Standard Checks}
+
+For SS3 and other age-structured assessments, useful external checks include maturity
+versus selectivity, survey trend versus assessment biomass, spatial occupancy or aggregation
+indicators, and comparison of recruitment or productivity regimes with external evidence.
+
+\input{appendices/content/external/checks.tex}
+
+\subsection{Diagnostic Output}
+
+Tables, figures, and code-generated summaries can be added to the file below as they
+become available.
+
+\input{appendices/content/external/output.tex}
+
+\subsection{Interpretation}
+
+State which model outputs are consistent with external evidence, which are not, and which
+external conflicts should be tested in the robustness appendix.
+
+\input{appendices/content/external/interpretation.tex}

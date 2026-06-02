@@ -1,0 +1,62 @@
+\section{Robustness Diagnostics and Reproducible Workflow}
+\label{app:robustness}
+
+Robustness diagnostics evaluate whether advice-relevant conclusions are stable under
+pre-specified alternative structures. This appendix should separate estimation uncertainty
+conditional on a reference model from sensitivity across models or scenarios. Generic
+scenario comparison, hindcast, ensemble, and projection code should live in packages;
+case-study scripts should define scenarios and write results into the content files below.
+
+\subsection{Required R Packages}
+
+\input{appendices/content/robustness/libraries.tex}
+
+\subsection{Scenario Register}
+
+Each robustness appendix should begin with a scenario register. Scenarios should be
+pre-specified before reviewing the results, and should identify which uncertainty source
+they test.
+
+\input{appendices/content/robustness/scenarios.tex}
+
+\subsection{Standard Checks}
+
+Robustness reporting should include:
+
+\begin{itemize}
+  \item retrospective patterns and hindcast or cross-validation prediction skill;
+  \item alternative stock--recruitment, natural mortality, selectivity, catchability, or data-weighting structures;
+  \item scenario or ensemble summaries for stock status, reference points, and catch advice;
+  \item comparison of model error with estimation error from the reference case;
+  \item central tendencies for target reference points and tail probabilities for limit reference points;
+  \item rebuilding quantities such as $B_{\mathrm{rebuild}}$, $T_{\mathrm{rebuild}}$, and $P(\mathrm{rebuild\ within\ }T)$ where relevant;
+  \item comparison of process-error diagnostics across model classes when ensembles combine biomass-dynamic (JABBA, SPiCT) and age-structured (SS3, SAM) formulations, using a common surplus-production currency on spawning biomass;
+  \item hindcast and catch back-test forecast skill where retrospective peels are available.
+\end{itemize}
+
+\input{appendices/content/robustness/checks.tex}
+
+\subsection{Diagnostic Output}
+
+Tables, figures, and code-generated summaries can be added to the file below as they
+become available.
+
+\input{appendices/content/robustness/output.tex}
+
+\subsection{Best Assessment Versus Ensemble}
+
+If the estimates from pre-specified alternative models remain within the uncertainty
+intervals of the reference model for the management quantities of interest, a best
+assessment may be adequate for advice. If model sensitivity is larger than estimation
+uncertainty, especially for limit tail probabilities or target central tendencies, advice is
+model-dependent and should be reported using a scenario set or ensemble.
+
+\input{appendices/content/robustness/ensemble.tex}
+
+\subsection{Interpretation}
+
+State which advice quantities are robust, which are model-dependent, and whether the
+case study should be presented as a best assessment, a screened scenario set, an ensemble,
+or an MSE operating-model set.
+
+\input{appendices/content/robustness/interpretation.tex}

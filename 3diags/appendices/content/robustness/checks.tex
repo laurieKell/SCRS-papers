@@ -1,0 +1,202 @@
+% Robustness diagnostic checks.
+
+\begin{table}
+
+\caption{\label{tab:robustness-pe-summary}Terminal-year scenario status relative to MSY reference points (from curveSS).}
+\centering
+\begin{tabular}[t]{lrrrr}
+\toprule
+scenario & terminal\_year & ssb\_bmsy & catch\_msy & harvest\_fmsy\\
+\midrule
+Scenario 1 & 2023 & 1.07 & 0.429 & 0.401\\
+Scenario 2 & 2023 & 1.07 & 0.436 & 0.408\\
+Scenario 3 & 2023 & 1.16 & 0.742 & 0.639\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}
+
+\caption{\label{tab:robustness-sspe}Surplus-production misspecification flags by scenario (sstruth::ssPeDiagnose).}
+\centering
+\begin{tabular}[t]{lrrrrrrrl}
+\toprule
+scenario & curve\_cor & curve\_rmse & curve\_rel\_rmse & pe\_cor\_ssb & pe\_cor\_biomass & pe\_rmse\_ssb & pe\_rmse\_biomass & likely\_misspecified\\
+\midrule
+Scenario 1 & 0.9933 & 374.4 & 0.11590 & -0.21360 & 0.2427 & 7.196 & 0.006521 & TRUE\\
+Scenario 2 & 0.9816 & 241.1 & 0.07565 & -0.06222 & -0.1129 & 16.800 & 0.007235 & TRUE\\
+Scenario 3 & 0.9992 & 1200.0 & 0.64210 & 0.11780 & -0.2070 & 22.950 & 0.007739 & TRUE\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}
+
+\caption{\label{tab:robustness-retro-onestep}One-step-ahead retrospective errors (sstruth::retroBacktestData).}
+\centering
+\begin{tabular}[t]{llrrlrrrrrrrr}
+\toprule
+scenario & peel & terminalYr & forecastYr & baseRefEra & catchFore & forecastF & catchEstBaseTime & estFBaseTime & catchReportedData & relErrCatchVsEst & relErrFVsEst & relErrCatchVsReported\\
+\midrule
+Scenario-2 & 0 & 2023 & 2024 & FORE & 3497 & 0.18070 & 3497 & 0.1807 & 0 & 0.000000 & 0.000000 & NA\\
+Scenario-2 & -1 & 2023 & 2024 & FORE & 3246 & 0.18230 & 3497 & 0.1807 & 0 & -0.071670 & 0.008362 & NA\\
+Scenario-2 & -2 & 2023 & 2024 & FORE & 0 & 0.00000 & 3497 & 0.1807 & 0 & -1.000000 & -1.000000 & NA\\
+Scenario-2 & -3 & 2023 & 2024 & FORE & 3582 & 0.19100 & 3497 & 0.1807 & 0 & 0.024420 & 0.056510 & NA\\
+Scenario-2 & -4 & 2023 & 2024 & FORE & 3602 & 0.18690 & 3497 & 0.1807 & 0 & 0.030090 & 0.034030 & NA\\
+\addlinespace
+Scenario-2 & -5 & 2023 & 2024 & FORE & 3589 & 0.18030 & 3497 & 0.1807 & 0 & 0.026320 & -0.002669 & NA\\
+Scenario-2 & -6 & 2023 & 2024 & FORE & 3577 & 0.17500 & 3497 & 0.1807 & 0 & 0.022840 & -0.032010 & NA\\
+Scenario-2 & -7 & 2023 & 2024 & FORE & 3557 & 0.17460 & 3497 & 0.1807 & 0 & 0.017130 & -0.033830 & NA\\
+Scenario-2 & -8 & 2023 & 2024 & FORE & 3470 & 0.17310 & 3497 & 0.1807 & 0 & -0.007715 & -0.042290 & NA\\
+Scenario-2 & -9 & 2023 & 2024 & FORE & 3440 & 0.17280 & 3497 & 0.1807 & 0 & -0.016330 & -0.044060 & NA\\
+\addlinespace
+Scenario-2 & -10 & 2023 & 2024 & FORE & 3455 & 0.17330 & 3497 & 0.1807 & 0 & -0.011900 & -0.041230 & NA\\
+Scenario-3 & 0 & 2023 & 2024 & FORE & 2056 & 0.08000 & 2056 & 0.0800 & 0 & 0.000000 & 0.000000 & NA\\
+Scenario-3 & -1 & 2023 & 2024 & FORE & 0 & 0.00000 & 2056 & 0.0800 & 0 & -1.000000 & -1.000000 & NA\\
+Scenario-3 & -2 & 2023 & 2024 & FORE & 1896 & 0.08577 & 2056 & 0.0800 & 0 & -0.077730 & 0.072210 & NA\\
+Scenario-3 & -3 & 2023 & 2024 & FORE & 2032 & 0.08570 & 2056 & 0.0800 & 0 & -0.011440 & 0.071250 & NA\\
+\addlinespace
+Scenario-3 & -4 & 2023 & 2024 & FORE & 1927 & 0.08428 & 2056 & 0.0800 & 0 & -0.062570 & 0.053610 & NA\\
+Scenario-3 & -5 & 2023 & 2024 & FORE & 1856 & 0.08289 & 2056 & 0.0800 & 0 & -0.097490 & 0.036150 & NA\\
+Scenario-3 & -6 & 2023 & 2024 & FORE & 1780 & 0.08138 & 2056 & 0.0800 & 0 & -0.134400 & 0.017320 & NA\\
+Scenario-3 & -7 & 2023 & 2024 & FORE & 1806 & 0.08284 & 2056 & 0.0800 & 0 & -0.121600 & 0.035590 & NA\\
+Scenario-3 & -8 & 2023 & 2024 & FORE & 1722 & 0.08392 & 2056 & 0.0800 & 0 & -0.162600 & 0.049080 & NA\\
+\addlinespace
+Scenario-3 & -9 & 2023 & 2024 & FORE & 1542 & 0.08266 & 2056 & 0.0800 & 0 & -0.250200 & 0.033260 & NA\\
+Scenario-3 & -10 & 2023 & 2024 & FORE & 1507 & 0.08584 & 2056 & 0.0800 & 0 & -0.267200 & 0.073090 & NA\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}
+
+\caption{\label{tab:robustness-mvln-terminal}Terminal-year MVLN status uncertainty by scenario (year 2023). Harvest = F/FMSY from Hessian draws.}
+\centering
+\begin{tabular}[t]{llrrrrrrrrrr}
+\toprule
+  & scenario & terminal\_year & stock\_median & stock\_p05 & stock\_p95 & harvest\_median & harvest\_p05 & harvest\_p95 & p\_overfished & p\_overfishing & weight\\
+\midrule
+Scenario-1 & Scenario-1 & 2023 & 1.05 & 0.867 & 1.32 & 24.3 & 21.0 & 27.9 & 0.326 & 1 & 0.333\\
+Scenario-2 & Scenario-2 & 2023 & 1.06 & 0.926 & 1.22 & 25.4 & 23.1 & 28.1 & 0.220 & 1 & 0.333\\
+Scenario-3 & Scenario-3 & 2023 & 1.16 & 0.938 & 1.42 & 43.3 & 35.5 & 52.7 & 0.112 & 1 & 0.333\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}
+
+\caption{\label{tab:robustness-catch-backtest}Catch back-test forecast summaries by peel and forecast scenario (collected via run-catch-backtests.R).}
+\centering
+\begin{tabular}[t]{lllrrrrll}
+\toprule
+scenario & peel & forecast\_scenario & forecast\_year & spawn\_bio & dead\_catch & sum\_f & run\_dir & ok\\
+\midrule
+Scenario-2 & 0 & catchReported & 2024 & 1188.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro0/catchReported & TRUE\\
+Scenario-2 & 0 & fMeanFull & 2024 & 1188.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro0/fMeanFull & TRUE\\
+Scenario-2 & 0 & fZero & 2024 & 1188.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro0/fZero & TRUE\\
+Scenario-2 & 0 & fMsy & 2024 & 1188.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro0/fMsy & TRUE\\
+Scenario-2 & -1 & catchReported & 2024 & 1184.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-1/catchReported & TRUE\\
+\addlinespace
+Scenario-2 & -1 & fMeanFull & 2024 & 1184.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-1/fMeanFull & TRUE\\
+Scenario-2 & -1 & fZero & 2024 & 1184.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-1/fZero & TRUE\\
+Scenario-2 & -1 & fMsy & 2024 & 1184.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-1/fMsy & TRUE\\
+Scenario-2 & -2 & catchReported & 2024 & 1243.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-2/catchReported & TRUE\\
+Scenario-2 & -2 & fMeanFull & 2024 & 1243.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-2/fMeanFull & TRUE\\
+\addlinespace
+Scenario-2 & -2 & fZero & 2024 & 1243.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-2/fZero & TRUE\\
+Scenario-2 & -2 & fMsy & 2024 & 1243.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-2/fMsy & TRUE\\
+Scenario-2 & -3 & catchReported & 2024 & 1252.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-3/catchReported & TRUE\\
+Scenario-2 & -3 & fMeanFull & 2024 & 1252.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-3/fMeanFull & TRUE\\
+Scenario-2 & -3 & fZero & 2024 & 1252.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-3/fZero & TRUE\\
+\addlinespace
+Scenario-2 & -3 & fMsy & 2024 & 1252.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-3/fMsy & TRUE\\
+Scenario-2 & -4 & catchReported & 2024 & 1238.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-4/catchReported & TRUE\\
+Scenario-2 & -4 & fMeanFull & 2024 & 1238.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-4/fMeanFull & TRUE\\
+Scenario-2 & -4 & fZero & 2024 & 1238.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-4/fZero & TRUE\\
+Scenario-2 & -4 & fMsy & 2024 & 1238.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-4/fMsy & TRUE\\
+\addlinespace
+Scenario-2 & -5 & catchReported & 2024 & 1203.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-5/catchReported & TRUE\\
+Scenario-2 & -5 & fMeanFull & 2024 & 1203.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-5/fMeanFull & TRUE\\
+Scenario-2 & -5 & fZero & 2024 & 1203.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-5/fZero & TRUE\\
+Scenario-2 & -5 & fMsy & 2024 & 1203.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-5/fMsy & TRUE\\
+Scenario-2 & -6 & catchReported & 2024 & 1196.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-6/catchReported & TRUE\\
+\addlinespace
+Scenario-2 & -6 & fMeanFull & 2024 & 1196.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-6/fMeanFull & TRUE\\
+Scenario-2 & -6 & fZero & 2024 & 1196.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-6/fZero & TRUE\\
+Scenario-2 & -6 & fMsy & 2024 & 1196.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-6/fMsy & TRUE\\
+Scenario-2 & -7 & catchReported & 2024 & 1160.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-7/catchReported & TRUE\\
+Scenario-2 & -7 & fMeanFull & 2024 & 1160.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-7/fMeanFull & TRUE\\
+\addlinespace
+Scenario-2 & -7 & fZero & 2024 & 1160.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-7/fZero & TRUE\\
+Scenario-2 & -7 & fMsy & 2024 & 1160.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-7/fMsy & TRUE\\
+Scenario-2 & -8 & catchReported & 2024 & 1116.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-8/catchReported & TRUE\\
+Scenario-2 & -8 & fMeanFull & 2024 & 1116.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-8/fMeanFull & TRUE\\
+Scenario-2 & -8 & fZero & 2024 & 1116.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-8/fZero & TRUE\\
+\addlinespace
+Scenario-2 & -8 & fMsy & 2024 & 1116.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-8/fMsy & TRUE\\
+Scenario-2 & -9 & catchReported & 2024 & 1089.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-9/catchReported & TRUE\\
+Scenario-2 & -9 & fMeanFull & 2024 & 1089.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-9/fMeanFull & TRUE\\
+Scenario-2 & -9 & fZero & 2024 & 1089.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-9/fZero & TRUE\\
+Scenario-2 & -9 & fMsy & 2024 & 1089.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-9/fMsy & TRUE\\
+\addlinespace
+Scenario-2 & -10 & catchReported & 2024 & 1079.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-10/catchReported & TRUE\\
+Scenario-2 & -10 & fMeanFull & 2024 & 1079.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-10/fMeanFull & TRUE\\
+Scenario-2 & -10 & fZero & 2024 & 1079.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-10/fZero & TRUE\\
+Scenario-2 & -10 & fMsy & 2024 & 1079.0 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-2/retrospectives/retro-10/fMsy & TRUE\\
+Scenario-3 & 0 & catchReported & 2024 & 451.1 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro0/catchReported & TRUE\\
+\addlinespace
+Scenario-3 & 0 & fMeanFull & 2024 & 451.1 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro0/fMeanFull & TRUE\\
+Scenario-3 & 0 & fZero & 2024 & 451.1 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro0/fZero & TRUE\\
+Scenario-3 & 0 & fMsy & 2024 & 451.1 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro0/fMsy & TRUE\\
+Scenario-3 & -1 & catchReported & 2024 & 447.3 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-1/catchReported & TRUE\\
+Scenario-3 & -1 & fMeanFull & 2024 & 447.3 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-1/fMeanFull & TRUE\\
+\addlinespace
+Scenario-3 & -1 & fZero & 2024 & 447.3 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-1/fZero & TRUE\\
+Scenario-3 & -1 & fMsy & 2024 & 447.3 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-1/fMsy & TRUE\\
+Scenario-3 & -2 & catchReported & 2024 & 472.4 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-2/catchReported & TRUE\\
+Scenario-3 & -2 & fMeanFull & 2024 & 472.4 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-2/fMeanFull & TRUE\\
+Scenario-3 & -2 & fZero & 2024 & 472.4 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-2/fZero & TRUE\\
+\addlinespace
+Scenario-3 & -2 & fMsy & 2024 & 472.4 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-2/fMsy & TRUE\\
+Scenario-3 & -3 & catchReported & 2024 & 471.4 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-3/catchReported & TRUE\\
+Scenario-3 & -3 & fMeanFull & 2024 & 471.4 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-3/fMeanFull & TRUE\\
+Scenario-3 & -3 & fZero & 2024 & 471.4 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-3/fZero & TRUE\\
+Scenario-3 & -3 & fMsy & 2024 & 471.4 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-3/fMsy & TRUE\\
+\addlinespace
+Scenario-3 & -4 & catchReported & 2024 & 463.6 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-4/catchReported & TRUE\\
+Scenario-3 & -4 & fMeanFull & 2024 & 463.6 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-4/fMeanFull & TRUE\\
+Scenario-3 & -4 & fZero & 2024 & 463.6 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-4/fZero & TRUE\\
+Scenario-3 & -4 & fMsy & 2024 & 463.6 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-4/fMsy & TRUE\\
+Scenario-3 & -5 & catchReported & 2024 & 448.2 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-5/catchReported & TRUE\\
+\addlinespace
+Scenario-3 & -5 & fMeanFull & 2024 & 448.2 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-5/fMeanFull & TRUE\\
+Scenario-3 & -5 & fZero & 2024 & 448.2 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-5/fZero & TRUE\\
+Scenario-3 & -5 & fMsy & 2024 & 448.2 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-5/fMsy & TRUE\\
+Scenario-3 & -6 & catchReported & 2024 & 436.5 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-6/catchReported & TRUE\\
+Scenario-3 & -6 & fMeanFull & 2024 & 436.5 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-6/fMeanFull & TRUE\\
+\addlinespace
+Scenario-3 & -6 & fZero & 2024 & 436.5 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-6/fZero & TRUE\\
+Scenario-3 & -6 & fMsy & 2024 & 436.5 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-6/fMsy & TRUE\\
+Scenario-3 & -7 & catchReported & 2024 & 435.6 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-7/catchReported & TRUE\\
+Scenario-3 & -7 & fMeanFull & 2024 & 435.6 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-7/fMeanFull & TRUE\\
+Scenario-3 & -7 & fZero & 2024 & 435.6 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-7/fZero & TRUE\\
+\addlinespace
+Scenario-3 & -7 & fMsy & 2024 & 435.6 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-7/fMsy & TRUE\\
+Scenario-3 & -8 & catchReported & 2024 & 415.5 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-8/catchReported & TRUE\\
+Scenario-3 & -8 & fMeanFull & 2024 & 415.5 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-8/fMeanFull & TRUE\\
+Scenario-3 & -8 & fZero & 2024 & 415.5 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-8/fZero & TRUE\\
+Scenario-3 & -8 & fMsy & 2024 & 415.5 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-8/fMsy & TRUE\\
+\addlinespace
+Scenario-3 & -9 & catchReported & 2024 & 380.5 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-9/catchReported & TRUE\\
+Scenario-3 & -9 & fMeanFull & 2024 & 380.5 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-9/fMeanFull & TRUE\\
+Scenario-3 & -9 & fZero & 2024 & 380.5 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-9/fZero & TRUE\\
+Scenario-3 & -9 & fMsy & 2024 & 380.5 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-9/fMsy & TRUE\\
+Scenario-3 & -10 & catchReported & 2024 & 356.2 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-10/catchReported & TRUE\\
+\addlinespace
+Scenario-3 & -10 & fMeanFull & 2024 & 356.2 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-10/fMeanFull & TRUE\\
+Scenario-3 & -10 & fZero & 2024 & 356.2 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-10/fZero & TRUE\\
+Scenario-3 & -10 & fMsy & 2024 & 356.2 & NA & NA & C:/active/flr/sstruth/data/ss3/sma-natl/Scenario-3/retrospectives/retro-10/fMsy & TRUE\\
+\bottomrule
+\end{tabular}
+\end{table}
+

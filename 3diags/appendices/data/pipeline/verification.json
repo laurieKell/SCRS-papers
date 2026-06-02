@@ -1,0 +1,14 @@
+{
+  "retro_peels_with_par": 22,
+  "retro_peels_expected": 22,
+  "hindcast_reports": 88,
+  "hindcast_expected": 88,
+  "retro_one_step_rows": 22,
+  "catch_forecast_rows": 88,
+  "ensemble_weights": true,
+  "profile_runs": 27,
+  "paper_figures": 6,
+  "paper_figures_expected": 6,
+  "appendix_content": 3,
+  "appendix_content_expected": 3
+}

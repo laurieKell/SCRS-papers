@@ -1,0 +1,22 @@
+\begin{table}
+
+\caption{\label{tab:internal-libraries}Required R packages for internal diagnostics.}
+\centering
+\begin{tabular}[t]{llll}
+\toprule
+package & role & tier & installed\\
+\midrule
+knitr & Knit template; format LaTeX tables & core & 1.51\\
+r4ss & Read SS3 output; summarise convergence and likelihood components & run\_code & 1.53.0\\
+sstruth & curveSS, diagSS, ssU, ssLen, ssRunSummary, residual plots & run\_code & 0.0.0.9020\\
+diags & CPUE diagnostic summaries via sstruth::ssU & run\_code & 2.2.1\\
+ggplot2 & Likelihood, residual, and recruitment-deviation figures & run\_code & 4.0.3\\
+\addlinespace
+reshape2 & Data reshaping for diagnostic plots & run\_code & 1.4.5\\
+ss3diags & SSrunstest and ssruns\_sig3; CPUE runs-test plots with 3-sigma limits & run\_code & 1.10.2\\
+FLRebuild & Fallback curveSS if sstruth unavailable & planned & 0.1.0\\
+ss3om & Fallback readFLSss3 via readTruth (optional) & planned & 0.5.3.9004\\
+\bottomrule
+\end{tabular}
+\end{table}
+

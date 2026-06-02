@@ -1,0 +1,5 @@
+\beamer@sectionintoc {1}{Framework}{2}{0}{1}
+\beamer@sectionintoc {2}{Internal diagnostics}{6}{0}{2}
+\beamer@sectionintoc {3}{Case study}{11}{0}{3}
+\beamer@sectionintoc {4}{Robustness}{16}{0}{4}
+\beamer@sectionintoc {5}{Lessons and discussion}{24}{0}{5}

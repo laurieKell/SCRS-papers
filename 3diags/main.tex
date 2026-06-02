@@ -1,0 +1,345 @@
+\documentclass[11pt,a4paper]{article}
+% https://www.iccat.int/Documents/SCRS/Other/Guide_ColVol_ENG.pdf
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{setspace}
+\usepackage{authblk}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{amsmath,amssymb}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{natbib}
+\usepackage{float}
+\usepackage{rotating}
+\graphicspath{{figs/}}
+\hypersetup{hypertexnames=false}
+
+\setstretch{1.0}
+\parskip=6pt
+\parindent=0pt
+\pagestyle{empty}
+\setlength{\emergencystretch}{2em}
+
+% ---------- Title & authors (fixed for reuse) ----------
+\title{\textbf{From Fitted to Fit-for-Purpose: Intertwining the Strands of Stock Assessment; Internal, External, and Robustness Diagnostics}}
+
+\author[1]{Laurence T. Kell}
+\author[2]{Massimiliano Cardinale}
+
+\affil[1]{Centre for Environmental Policy, Imperial College London, Weeks Building,
+16--18 Princes Gardens, London, SW7 1NE, UK}
+\affil[2]{Swedish University of Agricultural Sciences, Department of Aquatic Resources,
+Institute of Marine Research, SE-453 30 Lysekil, Sweden}
+
+\date{} % no date in SCRS docs (footnote on title carries disclaimer)
+
+\begin{document}
+\maketitle
+
+% ---------- SUMMARY ----------
+\begin{center}
+\textit{SUMMARY}
+\end{center}
+
+Integrated stock assessments are often judged based on a series of diagnostics such as convergence, fit to data, and the precision of management quantities among others. These checks are necessary but not sufficient for the provision of robust scientific advice. This paper proposes organising assessment diagnostics into three intertwined strands: \textbf{internal} diagnostics, which test consistency with the model likelihood and fitted data; \textbf{external} diagnostics, which test consistency with specified evidence outside the likelihood; and \textbf{robustness} diagnostics, which test whether advice is stable under pre-specified alternative structures. The main text outlines the framework and illustrates it with selected Stock Synthesis (SS3) shortfin mako examples; the appendices provide reproducible templates for detailed diagnostics, plots, tables, and code outputs. To ensure best practice, we recommend routine three-strand reporting: a minimum diagnostic checklist for accepted runs and key sensitivities, explicit separation of verification, validation, uncertainty and sensitivity, and rebuilding-based diagnostics for non-retained bycatch species where achieving high catch rates in the long term is not the primary management objective.
+
+\vspace{1ex}
+
+\textbf{KEYWORDS}
+
+Stock assessment, Stock Synthesis, diagnostics, validation, robustness, shortfin mako.
+
+\newpage
+\tableofcontents
+\newpage
+
+% ---------- MAIN TEXT ----------
+\section{Introduction}
+
+Scientific fishery advice depends on model outputs that are latent, i.e. seldom observed directly, such as spawning biomass, recruitment, and fishing mortality. It also depends on biological reference points that are commonly derived from equilibrium-based production functions. Stock Synthesis (SS3) \citep{MethotWetzel2013}, for example, provides a transparent and flexible framework for combining catch, abundance indices, composition data, and biological assumptions. That flexibility increases the need for diagnostics that distinguish between a technically well-fitted model and a model that is robust and adequate for management advice. Increasingly, multiple models are combined in the form of ensembles to provide advice. In practice, however, the largest implicit weight in any ensemble comes from inclusion in the original set of scenarios and the subsequent acceptance or refinement of those runs. If this screening step is not conducted using transparent, pre-specified criteria, then no ex post ensemble-weighting scheme—however sophisticated—can be expected to deliver unbiased estimates or risk metrics.
+
+Diagnostics can be summarised by three intertwined strands. \textbf{Internal} diagnostics evaluate whether the fitted model is consistent with its own assumptions, likelihood components, and data inputs. \textbf{External} diagnostics ask whether model outputs are biologically and empirically plausible; here ``plausible'' means consistent with specified evidence outside the fitted likelihood, such as life history, tagging, fishery-independent surveys, fishery behaviour, environmental drivers, and spatial information. \textbf{Robustness} diagnostics ask whether conclusions and advice are stable under alternative assumptions, including different stock--recruitment forms, natural mortality or selectivity, data weighting, process-error assumptions, retrospective peels, and hindcasts. The distinctions are practical: a model may converge, fit the main index, and produce biomass trends consistent with external evidence, while scale remains poorly informed by data and reference points depend strongly on fixed values, priors, data weighting, or the treatment of process error \citep{ICES2026}.
+
+The framework draws on and extends diagnostic tools developed in R, and assessment practice and innovations across a range of Regional Fisheries Management Organisations (RFMOs) and other bodies. This includes the diagnostic ``cookbook'' of \citet{carvalho2021cookbook}, empirical validation and hindcasting \citep{kell2016evaluation,kell2024empirical}, and recent reference-point evaluation guidance \citep{ICES2024}.
+
+We demonstrate how the three strands can be applied using shortfin mako shark SS3 scenarios \citep{ICCAT2025SMA}. The scenarios were not adopted for advice and are used only to demonstrate how diagnostic classes can be reported in a working group setting. The main text is therefore intentionally selective: it describes the framework and provides a small number of decision-relevant examples, leaving the full diagnostic workflow to the appendices. This structure allows us to provide examples of generic R methods that can be adapted to case studies, without getting into stock-specific details.
+
+\section{Diagnostic Framework}
+
+The strands map to familiar review concepts: internal diagnostics support \textbf{verification} of implementation and fit; external diagnostics and hindcasts support \textbf{validation} against information not used directly in fitting; and robustness diagnostics separate \textbf{uncertainty} within a model from \textbf{sensitivity} across model structures. Table~\ref{tab:diag-classes} summarises the three strands in the form of a practical review checklist. 
+
+\begin{table}[H]
+  \centering
+  \caption{Three diagnostic classes and their role in assessment review.}
+  \label{tab:diag-classes}
+  \small
+  \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{5.0cm}>{\raggedright\arraybackslash}X}
+    \toprule
+    Diagnostic class & Main question & Examples for SS3 assessments \\
+    \midrule
+    Internal & Is the model consistent with its likelihood, assumptions, and fitted data? & Convergence, gradients, Hessian status, residuals, effective sample size, recruitment deviations, likelihood profiles, parameters near bounds. \\
+    External & Is model behaviour consistent with evidence outside the likelihood? & Life history, surveys, tagging, age structure, spatial and environmental consistency, biological evidence for productivity and mortality. \\
+    Robustness & Would conclusions and advice change under pre-specified alternative structures? & Retrospectives, hindcasts, stock--recruitment alternatives, data weighting, natural mortality and selectivity. \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+
+
+\subsection{Internal Diagnostics}
+Internal diagnostics test whether the fitted assessment is consistent with the likelihood, parameterisation, and assumptions used by the model. For an SS3 assessment this includes convergence status, maximum gradient, Hessian behaviour, parameters near bounds, influential correlations, likelihood-component contributions, residual diagnostics for indices and compositions, effective sample sizes, recruitment deviations, and information content for key quantities.
+
+For management advice, the most important internal question is not simply whether the model converged, but what data inform management quantities. Examples include whether steepness, natural mortality, selectivity, or survey catchability are estimated, fixed, penalised, or effectively determined by bounds and priors. Where MSY-based quantities are derived from a stock--recruitment relationship, internal diagnostics should ask whether there is sufficient contrast in spawning biomass and recruitment, whether residuals are independent and stationary, and whether likelihood profiles show information in the data rather than only in model assumptions \citep[][]{kell2025profile}.
+
+Internal diagnostics should also distinguish between \textbf{identifiability} and \textbf{estimability}, and consider \textbf{regularisation}. Identifiability asks whether different parameter combinations can produce the same model output. For example, natural mortality, growth, and selectivity may combine to give similar production dynamics. Estimability asks whether the available data provide enough contrast to estimate a parameter precisely, even when the model structure is identifiable. Likelihood profiling and Hessian diagnostics can disclose parameter confounding, ill-conditioned models, in such cases uncertainty intervals from the Hessian and profile may disagree. Where instability is detected, regularised Bayesian methods such as MCMC with \texttt{adnuts} provide a practical route to stabilise poorly informed parameters, reformulate selectivity or other weakly estimated terms, and obtain within-model uncertainty for derived quantities \citep{courtney2024adnuts}. This is especially relevant for data-limited SS3 assessments where convergence alone does not show whether advice-relevant quantities are well determined.
+
+Regularisation addresses the practical problem that arises when data are insufficient to estimate all model parameters precisely, even when the model structure is theoretically identifiable. In stock assessment, this commonly occurs with selectivity parameters, natural mortality, stock-recruitment steepness, and catchability coefficients. Rather than fixing these parameters at arbitrary values or allowing them to drift to implausible bounds, regularisation introduces soft constraints through informative priors, penalty functions, or Bayesian hierarchical structures that stabilise estimation while preserving uncertainty. For example, a weakly informative prior on natural mortality might constrain estimates to biologically plausible ranges while still allowing the data to inform the estimate where contrast exists. Regularisation differs from simple parameter fixing in that it maintains explicit uncertainty and allows the likelihood to override prior beliefs when data are strong. In SS3, common regularisation approaches include priors on derived quantities, penalty components in the likelihood, and full Bayesian estimation using MCMC with the \texttt{adnuts} algorithm \citep{courtney2024adnuts}. The choice between maximum likelihood with penalties and full Bayesian MCMC depends on whether within-model uncertainty is required for management quantities: MCMC naturally propagates parameter uncertainty to derived quantities like $B/B_{\text{MSY}}$ and catch limits, while asymptotic standard errors from the Hessian may be unreliable when parameters are weakly identified. Regularisation diagnostics should therefore report whether reference points and advice quantities are primarily informed by data contrast or by prior/penalty structures, and whether uncertainty intervals reflect estimation precision or regularisation strength.
+
+\subsubsection{Process Error Diagnostics}
+
+Process error diagnostics examine whether deviations from the expected production function behave as independent stochastic noise or reveal systematic patterns that suggest model misspecification or non-stationarity. Under a correctly specified model, process residuals should be independent and identically distributed around zero with approximately constant variance (white noise). In practice, however, process error often compensates for structural misspecification---such as time-varying productivity, changes in selectivity or catchability, or inconsistencies in catch reporting.
+
+Four complementary checks characterise process-error behaviour:
+
+\begin{enumerate}
+  \item \textbf{Temporal patterns:} Residuals plotted against time should fluctuate around zero with stable variance. Trends, regime-like shifts, or changing variance indicate non-stationary dynamics. The STARS (Sequential T-test Analysis of Regime Shifts) algorithm \citep{rodionov2004sequential} can be used to identify candidate regime shifts in process residuals, flagging periods where mean productivity may have changed systematically.
+
+  \item \textbf{Biomass-dependent bias:} Residuals plotted against biomass reveal whether the production function systematically over- or under-predicts at certain stock sizes. Curvature or biomass-dependent patterns suggest incorrect production-curve shape or heteroscedasticity---variance that changes with stock size. At low biomass, demographic and environmental stochasticity often increase proportional variance in per-capita growth, and Allee effects (mate limitation, schooling breakdown) may inflate process noise \citep{clark2004population}.
+
+  \item \textbf{Autocorrelation structure:} The autocorrelation function (ACF) with approximate 95\% confidence bounds distinguishes white noise from red noise (autocorrelated deviations). Significant low-lag autocorrelation suggests environmental forcing, omitted covariates, or serially correlated implementation error rather than independent process variability. Red-noise behaviour is common in fisheries assessments and indicates that uncertainty intervals based on independence assumptions may be too narrow.
+
+  \item \textbf{Distributional properties:} Histograms with normal overlays test whether residuals are approximately Gaussian with mean near zero. Skewness, offset means, or heavy tails point to bias, missing processes, or incorrect variance structure. For example, consistently positive residuals indicate the production function under-predicts productivity, while negative skew may reflect unmodelled mortality or catch misreporting.
+\end{enumerate}
+
+\subsubsection{Internal versus External Stock--Recruitment Fitting}
+
+An important distinction exists between internal and external fitting of stock--recruitment relationships, with implications for process-error interpretation. Models such as SAM \citep{nielsen2014sam} embed the stock--recruitment relationship internally as part of the state-space estimation, where recruitment deviations are estimated jointly with other model parameters. This internal approach accounts for uncertainty and correlation in spawning stock biomass (SSB) and recruitment estimates, and the stock--recruitment relationship is integrated with growth, natural mortality, and selectivity to form the implicit production function.
+
+In contrast, external post-hoc fitting involves fitting a relationship to point estimates of SSB and recruitment extracted from an assessment (e.g., SS3). This approach, while common, has important limitations:
+
+\begin{itemize}
+  \item SSB and recruitment series are model-dependent and uncertain, influenced by assumptions about selectivity, natural mortality, survey catchability, and any implicit or explicit stock--recruitment relationship used in the assessment.
+  \item Treating these estimates as known when fitting an external stock--recruitment relationship ignores their uncertainty and correlation (e.g., shared survey and catch errors, cohort effects), leading to over-confident fits and potentially biased steepness or compensation parameters.
+  \item The apparent stock--recruit pattern can partly reflect assessment structure rather than underlying biology \citep{simmonds2019biological}, and updates to the assessment can shift the apparent stock--recruitment relationship even if the underlying dynamics are unchanged, creating an illusion of non-stationarity driven by evolving model assumptions rather than true changes in productivity.
+  \item Quirky patterns in time-series of recruitment estimates, such as apparent regime shifts or cycles, can be artefacts of the assessment process rather than true biological signals \citep{dickeycollas2015quirky}.
+\end{itemize}
+
+Where recruitment patterns are assessment artefacts, process error derived from stock--recruitment relationships may reflect model structure rather than genuine biological variability, further complicating the interpretation of process error as a measure of true population stochasticity.
+
+\subsection{External Diagnostics}
+External diagnostics compare model behaviour with evidence outside the fitted likelihood. This includes consistency with life-history knowledge, consistency of growth and maturity with biological knowledge, coherence between biomass trends and survey perceptions, evidence-consistent exploitation history, age-structure signals, spatial and environmental information, and agreement with independent or pre-standardised data products. This provides an explicit definition of plausibility for review purposes.
+
+External diagnostics are especially important when a model uses standardised survey indices or pre-processed composition data. If environmental effects have already been absorbed in a spatially explicit model such as VAST, sdmTMB, or comparable standardisation model, then adding similar covariates inside SS3 may double-count the signal. Conversely, if spatial availability or changes in vulnerability are not represented in the assessment, recruitment deviations, selectivity deviations, or process-error signals may absorb effects that are not included in the model. External diagnostics therefore ask whether the assessment is biologically credible, not only statistically well fitted.
+
+\subsection{Robustness Diagnostics}
+
+Robustness diagnostics evaluate whether stock status, reference points, and advice are stable under pre-specified alternative structures. They include retrospective analyses, hindcasts and prediction skill, likelihood profiles, alternative stock--recruitment forms, data-weighting sensitivities, alternative natural mortality or selectivity structures, and scenario or ensemble analyses. Robustness diagnostics are linked to validation because a model adequate for advice should have useful prediction skill over the time horizons used for management \citep{kell2016evaluation,kell2024empirical}.
+
+In practice, robustness separates uncertainty conditional on one model from sensitivity across pre-specified models. Confidence intervals from a single accepted run describe estimation uncertainty conditional on that run. Differences among acceptable scenarios describe structural uncertainty. For advice, both matter. If alternative structures produce similar historical biomass trajectories but different $B_{\mathrm{MSY}}$, $F_{\mathrm{MSY}}$, or catch limits, then the assessment may be adequate for tracking status while being less reliable for precise MSY-based advice.
+
+\subsubsection{Continuous-Time and State-Space Formulations}
+
+Robustness diagnostics should account for fundamental differences in how process error is modelled across assessment frameworks. Continuous-time stochastic surplus production models such as SPiCT \citep{pedersen2017spict} formulate biomass dynamics as a continuous-time process with stochastic biomass, fishing mortality, and observations. Process and observation error are estimated jointly, and catch may be treated as latent rather than fixed. This explicit treatment allows direct estimation of process-error variance as a model parameter.
+
+By contrast, integrated age-structured models such as SS3 distribute process variability across recruitment deviations and sometimes time-varying selectivity or growth, with natural mortality, discard survival, and other processes often treated as fixed or weakly time-varying random effects. When comparing process-error diagnostics across model types, differences in estimated variability may reflect differences in how emergent production dynamics are represented and partitioned among recruitment, growth, mortality, and exploitation, rather than fundamental differences in stock biology.
+
+For robustness testing, ensemble or model-averaging approaches should explicitly account for these structural differences. When biomass-dynamic models (JABBA, SPiCT) and integrated age-structured models (SS3, SAM) are combined in an ensemble, process-error diagnostics should be derived on a common currency (e.g., surplus production on spawning biomass) to enable meaningful comparison. Where diagnostics reveal substantially different process-error magnitudes or temporal patterns between model classes, this structural sensitivity should be reported as part of robustness assessment.
+
+Robustness diagnostics should also distinguish between \textbf{tail probabilities} and \textbf{central tendencies}. Limit reference points are primarily risk statements, so diagnostics should report probabilities of undesirable events, for example $P(B < B_{\mathrm{lim}})$, $P(F > F_{\mathrm{lim}})$, or the probability of falling below a biomass threshold during a projection period \citep{Roux2022,Fischer2023}. Target reference points are usually interpreted through central tendencies, such as the median or mean of $B/B_{\mathrm{MSY}}$, $F/F_{\mathrm{MSY}}$, catch, or rebuilding time, together with their spread. A scenario may have an acceptable median trajectory but an unacceptable lower tail, or similar median status but very different probabilities of breaching a limit. Limits may be informed by only one assessment in a set of scenarios or ensembles, while medians by all. Robustness reporting therefore shows both: central tendencies for targets and tail probabilities for limits.
+
+\section{Scope}
+
+The diagnostics described here are available as reproducible R workflows, but not all diagnostics are currently available in one package. The workflow uses \texttt{r4ss}, \texttt{ss3diags}, \texttt{ss3om}, \texttt{FLCore}, \texttt{sstruth}, \texttt{FLRebuild} and \texttt{kobe}.
+
+\texttt{r4ss} reads in \texttt{SS3} inputs and outputs into \texttt{R} lists, data frames, and matrices, \texttt{ss3om} converts these to \texttt{FLR} and \texttt{FLCore} objects that represent stocks, stock recruitment relationships, production functions, biological reference points, length frequency distributions and other inputs, estimates and derived quantities. \texttt{ss3diags} implements common diagnostics based on the cookbook. While \texttt{sstruth} creates operating model and other tools for simulation testing, and \texttt{FLRebuild} implements a variety of reference points both equilibrium based and dynamic, \texttt{kobe} provides stock estimates used for management advice. \texttt{FLR} and \texttt{FLCore} are deigned to generic and can be used for any stock assessment \citep{kell2007flr}, i.e. helping to compare and combine model frameworks.
+
+
+\begin{table}[H]
+  \centering
+  \caption{Diagnostic workflows and main package dependencies.}
+  \label{tab:diag-availability}
+  \scriptsize
+  \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{4.2cm}}
+    \toprule
+    Diagnostic workflow & Model scope & Main packages \\
+    \midrule
+    SS3 fit and residual diagnostics & SS3-specific because it reads SS3 report objects through \texttt{r4ss}; concepts also apply to other models where residuals and retrospective outputs are available. & \texttt{r4ss}, \texttt{ss3diags} \\
+    Retrospectives and hindcasts & the diagnostic is model-class agnostic and applies to any assessment that can be re-run with terminal years removed and forecasts compared with withheld data. & \texttt{r4ss}, \texttt{ss3diags}, \texttt{sstruth} \\
+    Process-error and production-function diagnostics & The SMA implementation reads SS3 scenarios, but the diagnostic is not SS3-specific. It requires biomass, removals, reference points, and an implied or explicit production function. For biomass-dynamic models such as JABBA or SPiCT the production function is explicit; for SS3 it is reconstructed from age-structured output. & \texttt{ss3om}, \texttt{sstruth}, \texttt{FLCore}, \texttt{FLRebuild} \\
+    Likelihood profiles and identifiability & Examples are SS3/r4ss-specific, but likelihood profiling and Hessian diagnostics are relevant to any likelihood-based assessment framework. & \texttt{r4ss},  \texttt{FLRebuild} \\
+    Stock--recruitment and reference-point robustness & Testing alternative stock--recruitment forms, steepness, and proxy reference points is relevant to all age-structured assessments. & \texttt{r4ss}, \texttt{ss3om}, \texttt{FLCore}, \texttt{FLBRP}, \texttt{FLRebuild} \\
+    MVLN status and advice uncertainty & Implemented for SS3 covariance and derived quantities, but the idea applies to any model that provides a covariance matrix or posterior/Monte Carlo draws for stock status and reference points. & \texttt{r4ss}, \texttt{kobe}, \texttt{ss3om}, \texttt{FLCore} \\
+    External biological checks & Not model-specific. These checks require life-history, survey, fishery, and spatial/ecological information outside the fitted likelihood. & \texttt{FLCore}, \texttt{FLife} \texttt{ggplot2}, assessment-specific data packages \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+Both stock--recruitment relationships and production functions are essentially model-derived, or emergent, properties rather than directly observed biological laws. In SS3, annual recruitment deviations are estimable quantities within the age-structured likelihood, and they absorb deviations from the assumed stock--recruitment relationship as well as effects of misspecified mortality, selectivity, catchability,productivity and may others. In state-space biomass-dynamic models, by contrast, process-error deviations are usually explicit deviations in the biomass state equation. Models such as JABBA and SPiCT estimate the production function directly, for example through parameters controlling productivity, carrying capacity and shape, whereas in SS3 the equivalent production function is implicit: it is derived from yield-per-recruit, spawning-biomass-per-recruit, selectivity, life-history parameters, and the stock--recruitment relationship. The main distinction is therefore not whether a production function exists, but whether it is parameterised explicitly and estimated during fitting, or is an implicit consequence of the fitted age-structured model and derived post hoc for diagnostic interpretation. 
+
+The diagnostic \textit{classes} are not specific to SS3 or to age-structured models. Internal, external, and robustness diagnostics are general assessment and review concepts. The code base described here is for SS3 because \texttt{r4ss} and \texttt{ss3diags} provide a set of diagnostics, summaries, and plotting functions that have been widely used. Biomass-dynamic models such as JABBA and SPiCT can use the same diagnostic strands, but the implementation changes: internal checks use posterior or state-space residuals, process error is an explicit biomass-state deviation, and production functions are estimated directly rather than reconstructed from age-structured outputs. For an empirical management procedure, internal diagnostics might check that the indicator and control rule are implemented correctly, external diagnostics might compare the indicator with independent survey or spatial information, and robustness diagnostics would be evaluated through simulation testing. Empirical and data-limited methods may have fewer internal likelihood diagnostics and rely more on simulation, hindcasting where possible, and management-procedure testing.
+
+\section{Illustrative Examples from SS3 Shortfin Mako Scenarios}
+
+The illustrative examples use the SS3 scenarios developed during the 2025 ICCAT shortfin mako shark assessment meeting and analysed in \citep{ICCAT2025SMA}.  The scenarios were used to derive time series of spawning stock biomass, harvest intensity, production-function, MSY-scaled, and process-error diagnostics from SS3 outputs extracted using \texttt{r4ss}. Surplus production and process residuals were then calculated from the SS3-derived biomass and catch series \citep{walters2008surplus}.  They are not intended to reproduce every diagnostic output. Instead, they show how a small set of plots can carry the main message of each diagnostic strand: internal diagnostics reveal residual patterns and production-function behaviour; external diagnostics can identify age-structure and biomass-currency issues if SS3 and JABBA are compared; and robustness diagnostics show if reference points and rebuilding conclusions should be treated as conditional.
+
+The shortfin mako stock has strong age-structure effects, catches are dominated by juveniles and subadults, although management quantities are expressed on a spawning-biomass scale. As a result, apparent production dynamics can be affected by the mismatch between the reproductive state variable and the age classes removed by fishing \citep{winker2020age}. This makes the case study a useful stress test for separating internal fit, external biological consistency, and robustness of management interpretation.
+
+\input{appendices/content/sma/scenario-runs.tex}
+
+\input{appendices/content/sma/diag-checklist.tex}
+
+\subsection{Internal Diagnostics in the Case Study}
+The first internal diagnostic question is whether the estimated trajectory and implied production function are compatible with the model assumptions. SS3 outputs were converted into MSY-scaled time series and phase plots. The time-series diagnostics show that catch tracks fishing intensity more closely than spawning biomass, while the production phase plots show that realised surplus production does not always align with the equilibrium production curves implied by reference points.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figs/sma-fig-ts-1.png}
+  \caption{MSY-scaled time series from the illustrative shortfin mako SS3 scenarios: spawning stock biomass, catch, and harvest intensity. Reproduced from the SS3 diagnostics prepared for SCRS/2026/074.}
+  \label{fig:ts}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figs/sma-fig-pe-phase-1.png}
+  \caption{Equilibrium surplus-production curves with estimated production overlaid for the illustrative SS3 shortfin mako scenarios. Points and paths show annual estimated surplus production relative to spawning biomass.}
+  \label{fig:pe-phase}
+\end{figure}
+
+These plots are internal diagnostics because they are derived from the fitted SS3 outputs and ask whether the implied dynamics behave as expected. They do not, by themselves, prove that the assessment is right or wrong. Instead, they may help identify where the internal accounting of biomass, production, removals, and reference points requires closer examination.
+
+\subsection{External Diagnostics in the Case Study}
+The main external diagnostic for shortfin mako is biological consistency: whether the fitted outputs and derived diagnostics agree with known maturity, selectivity, and age-structured response. The maturity and selectivity ogives differ strongly: fishing mortality acts heavily on ages below 50\% maturity, while the management state is mature female biomass. This creates a lag between changes in fishing mortality and changes in spawning biomass, weakens a simple instantaneous interpretation of surplus production on an SSB scale, and motivates the rebuilding-based diagnostics discussed below.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.88\linewidth]{figs/selmat.png}
+  \caption{Comparison of selectivity and maturity-at-age in the illustrative shortfin mako SS3 scenarios. The mismatch is an external diagnostic because it is interpreted against life history and fishery selectivity, not only model fit.}
+  \label{fig:selmat}
+\end{figure}
+
+This diagnostic changes the interpretation of the internal results. Negative or weak surplus production on an SSB scale may reflect a real productivity signal, but it may also reflect an inconsistent currency: the state is mature-female spawning biomass while removals are dominated by immature fish. External diagnostics therefore prevent over-interpreting a statistical residual as a direct biological process.
+
+\subsection{Robustness Diagnostics in the Case Study}
+Robustness diagnostics ask whether the advice-relevant conclusions remain stable when process error, non-stationarity, and alternative model structures are considered. SCRS/2026/074 examined residuals from the SS3-derived production functions over time, against biomass, as empirical distributions, and through autocorrelation. Structured residuals, regime-like shifts, biomass-dependent bias, or red-noise behaviour suggest that the fitted equilibrium production function is not fully summarising the stock dynamics.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figs/sma-fig-res-time-1.png}
+  \caption{Process residuals over time for the illustrative shortfin mako SS3 scenarios. Shading identifies candidate regimes from a STARS-type filter \citep{rodionov2004sequential}.}
+  \label{fig:res-time}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figs/sma-fig-res-acf-1.png}
+  \caption{Autocorrelation of process residuals for the illustrative SS3 shortfin mako scenarios. Autocorrelation in residuals is a robustness warning because it indicates that deviations are not behaving like independent process noise.}
+  \label{fig:res-acf}
+\end{figure}
+
+\paragraph{Interpreting autocorrelation and red noise.}
+
+Figure~\ref{fig:res-acf} shows autocorrelation of process residuals with approximate 95\% confidence bounds (dashed horizontal lines). Under white-noise assumptions, autocorrelation at all lags should fall within these bounds. Significant autocorrelation at low lags indicates \textbf{red noise}---serially correlated deviations that persist over multiple time steps. Red-noise behaviour can arise from environmental forcing with multi-year persistence, omitted covariates that exhibit temporal autocorrelation, serially correlated implementation error in catch or effort reporting, or age-structure effects not fully captured by the production function.
+
+For the illustrative shortfin mako scenarios, positive autocorrelation at short lags followed by negative values at longer lags is consistent with red noise rather than independent process variability. This pattern suggests that deviations from equilibrium production are not random shocks but reflect structured processes. When red noise is detected, uncertainty intervals based on white-noise assumptions will be too narrow, and forecast intervals for catch advice or rebuilding trajectories will underestimate risk.
+
+\paragraph{Heteroscedasticity and variance stability.}
+
+Episodes of large process error clustered in time or at specific biomass levels indicate \textbf{heteroscedasticity}---non-constant variance in process deviations. This can signal unrecorded mortality events or catch misreporting in specific years, strong year classes or recruitment pulses not captured by the stock--recruitment relationship, changes in selectivity or catchability that are treated as fixed in the model, or age truncation at low stock size, where fewer age classes amplify demographic stochasticity.
+
+For data-limited or bycatch stocks where age structure may be severely truncated, higher process variance at small stock size need not imply model failure---it may reflect genuine increases in demographic stochasticity and depensatory risks. Where heteroscedasticity is detected, constant-variance likelihoods (e.g., log-normal process error with fixed $\sigma$) should be treated cautiously, and robust reference points or harvest rules that account for state-dependent risk may be appropriate.
+
+The message on robustness is that equilibrium reference points from a single SS3 configuration should be interpreted as conditional on the assumed dynamics. Where residuals are non-stationary or autocorrelated, and where state and removals are not expressed in a common biological currency, reference points and projections should be stress-tested through alternative scenarios, hindcasts, and management-strategy evaluation. In similar SCRS applications, residual diagnostics should be treated as a gating check before adopting equilibrium MSY reference points for advice.
+
+\section{Lessons for SCRS Assessments}
+
+The three diagnostic classes are complementary rather than hierarchical. For SCRS assessments using SS3 or similar integrated models, the accepted run and principal sensitivities should be accompanied by a compact checklist of diagnostic tests. This checklist is intended for the main paper or meeting report; the appendices can then hold the detailed plots, tables, and code-generated outputs.
+
+\begin{enumerate}
+  \item \textbf{Internal:} report convergence, maximum gradient, Hessian status, parameters near bounds, residual summaries by main data source, composition effective sample sizes, and information-content checks for advice-relevant quantities.
+  \item \textbf{External:} report at least one maturity--selectivity or vulnerability plot, compare assessment trends with standardised survey perceptions, and state which spatial, environmental, or fishery signals are handled outside the assessment likelihood.
+  \item \textbf{Robustness:} report retrospective patterns, at least one hindcast or prediction-skill check where feasible, key structural sensitivities, scenario or ensemble summaries for status and catch advice, tail probabilities for limits, and central tendencies for targets.
+  \item \textbf{Process error:} for assessments using explicit or implicit production functions, report process-error diagnostics including temporal patterns (regime shifts via STARS or similar), biomass-dependent bias, autocorrelation structure (white vs.\ red noise), and distributional properties. Where multiple model types are used (e.g., SS3, JABBA, SPiCT), distinguish between process error absorbed into recruitment deviations versus explicit biomass-state deviations, and report whether process-error variance differs systematically between frameworks.
+\end{enumerate}
+
+This checklist also clarifies terminology. \textbf{Verification} asks whether the model and inputs are implemented correctly and reproducibly; for example, whether the equations in the documentation were implemented faithfully in code and whether SS3 outputs and diagnostics, can be regenerated from the archived files. \textbf{Validation} asks whether the model is adequate for its management use; for example, whether hindcasts have skill against withheld survey indices. \textbf{Uncertainty} describes the spread conditional on an accepted model, while \textbf{sensitivity} describes the spread across pre-specified model structures. Treating these as separate questions helps avoid confusing a well-fitted model with robust advice.
+
+\section{Discussion}
+
+Based on the shortfin mako SS3 case study, assessment diagnostics should be organised around the questions being posed and the management advice being supported. If the decision depends mainly on stock trend, then index fit, retrospective behaviour, and survey coherence may be the most important. If the decision depends on MSY-based reference points, stock--recruitment information content, production-function behaviour, and sensitivity to steepness or productivity assumptions become key. If advice is for rebuilding, hindcasts, process-error diagnostics, and robustness of projections become more important.
+
+\subsection{Rebuilding-based diagnostics for bycatch species}
+
+For a non-retained bycatch species such as shortfin mako, MSY-based targets may be an inappropriate primary objective, particularly where fishing mortality is concentrated on juveniles and subadults while the management state is mature female spawning biomass \citep{winker2020age,Winker2025assessing}. In this setting, yield is not the management benefit being maximised, and the delay between reducing juvenile mortality and rebuilding the spawning component means that equilibrium $B_{\mathrm{MSY}}$ and $F_{\mathrm{MSY}}$ can be a poor summary of recovery potential.
+
+Rebuilding-based quantities provide a more direct diagnostic frame:
+\[
+B_{\mathrm{rebuild}} = \min\{B_t : P(B_{t+T} \ge B_{\mathrm{target}} \mid F_{\mathrm{rebuild}}) \ge p^\ast\},
+\]
+where \(B_{\mathrm{rebuild}}\) is the lowest biomass from which the stock can reach an agreed target within a given horizon \(T\) under a stated fishing scenario, and \(p^\ast\) is an agreed probability. The complementary quantity \(T_{\mathrm{rebuild}}\) is the time required to reach that target from the current state \citep{kell2026rebuild}. For bycatch species, the target need not be \(B_{\mathrm{MSY}}\); it could be mature biomass, age structure, mature fraction, or another state-vector quantity linked to recovery and reproductive capacity \citep{griffiths2024including}.
+
+The three diagnostic strands map naturally onto rebuilding. Internal diagnostics describe production-function behaviour and the fitted state vector. External diagnostics test whether maturity, selectivity, and age structure support the chosen rebuilding target. Robustness diagnostics report the distribution of \(T_{\mathrm{rebuild}}\), the probability of failing to rebuild within the agreed time horizon, and sensitivity to alternative productivity or mortality assumptions. For example, an SCRS table could report \(P(B_T \ge B_{\mathrm{target}})\) over 20 or 30 years under a specified bycatch mortality scenario, alongside the median and upper quantiles of \(T_{\mathrm{rebuild}}\).
+
+The shortfin mako example illustrates why internal diagnostics alone can be misleading. SS3 can provide a coherent fitted trajectory and reference points, yet the biological interpretation of production and process error depends on age structure and the currency of biomass and removals. External diagnostics identify that mismatch; robustness diagnostics then show whether management conclusions are sensitive to it.
+
+For SCRS, a practical approach is to make the three diagnostic classes part of routine assessment documentation. The aim is not to require every possible diagnostic in every assessment cycle, but to make clear which questions have been answered, which are only partly addressed, and which remain open. This is particularly important when alternative model structures produce similar fits but different advice-relevant quantities. Appendices~\ref{app:internal}--\ref{app:robustness} provide template structures for the three strands; the main text should draw out decision-relevant examples rather than reproduce all diagnostic output.
+
+\subsection{Observation versus Process Error Separation}
+
+A persistent challenge in stock assessment diagnostics is separating observation error from process error, particularly at low stock sizes or when data quality changes over time. Observation error arises from measurement variation in surveys, catch sampling, and biological data collection. Process error represents genuine variability in population dynamics due to environmental stochasticity, demographic variation, or biological processes not explicitly modelled.
+
+In practice, the distinction is often blurred. Noisy indices at low abundance can be confounded with genuine increases in demographic stochasticity \citep{clark2004population}. Changes in survey methodology, spatial coverage, or catchability can appear as process error if not explicitly modelled. Misreported catch or discarding that varies over time may be absorbed into recruitment deviations or production-function residuals rather than observation-error components.
+
+State-space models such as SPiCT explicitly separate process and observation error by jointly estimating stochastic biomass dynamics and measurement uncertainty. This allows diagnostics to attribute residual patterns to either population variability or data quality. In contrast, SS3 typically treats observations as having known error structures (input CVs, effective sample sizes) while absorbing most process variability into recruitment deviations. This partition is pragmatic but means that process-error diagnostics in SS3 may conflate genuine population stochasticity with observation-model misspecification.
+
+For diagnostic purposes, three practical checks can help distinguish error sources:
+
+\begin{enumerate}
+  \item \textbf{Index residual patterns:} Structured residuals from abundance indices (e.g., runs tests, autocorrelation in standardised residuals) suggest observation-model issues rather than population-level process error.
+
+  \item \textbf{Consistency across data sources:} If process error is genuinely biological, it should manifest similarly when diagnostics are derived from different indices or age-composition data. Inconsistent patterns across data types suggest observation-error issues.
+
+  \item \textbf{External validation:} Hindcasts and prediction-skill diagnostics help separate genuine process variability from overfitting to noisy observations. Models with high process error but poor hindcast skill may be absorbing observation noise rather than capturing true population stochasticity.
+\end{enumerate}
+
+Where observation and process error cannot be cleanly separated, robustness diagnostics become critical. Ensemble approaches that compare state-space formulations (explicit error separation) with age-structured models (implicit partition) can reveal whether advice-relevant quantities are sensitive to how errors are allocated. For SCRS assessments, reporting both error types and their diagnostic implications ensures that uncertainty characterisation is appropriately conservative when the error partition is uncertain.
+
+\subsection{Reproducibility}
+
+Transparent and reproducible stock assessments depend on open access to three layers: the code that implements the assessment, the inputs that define the model configuration and data, and the outputs that inform management advice. Currently, SCRS assessments vary in the degree to which these layers are accessible to review and reanalysis outside the working group setting by stakeholders. Improving access requires balancing transparency, intellectual property, data sensitivity, and the practical burden of documentation and archiving.
+
+A practical minimum standard for reproducibility would include: (1) version-controlled assessment code, including scripts for data preparation, model fitting, and diagnostic workflows; (2) archived inputs in standardised formats, such as SS3 control, data, and forecast files, or equivalent structures for other platforms; and (3) model outputs sufficient to regenerate key figures, tables, and derived quantities without re-running the full assessment. The three-strand diagnostic framework presented here depends on this information being accessible. Internal diagnostics require residuals, likelihood components, and Hessian outputs; external diagnostics require biological inputs and survey time series; and robustness diagnostics require retrospective runs, sensitivity scenarios, and ensemble summaries.
+
+The risks of limited access are twofold. First, stakeholders may question whether ICCAT management advice is sufficiently transparent when the data and code underpinning reference points and catch limits are not publicly verifiable. Second, scientific innovation is constrained when researchers outside the SCRS cannot access assessment outputs to develop new diagnostic methods, validate frameworks through hindcasting, or test alternative model structures. A structured experiment—such as attempting to reconstruct assessment inputs and outputs from published reports using digitisation tools—would help clarify what information can currently be recovered, what gaps exist, and where targeted improvements in archiving and reporting would yield the greatest return for transparency and scientific progress. Such an exercise would complement the three-strand diagnostic framework by ensuring that the workflows described here can be applied, verified, and extended by the broader research community.
+
+
+\subsection{Appendices}
+
+The appendices are intended as reproducible diagnostic templates rather than fixed narrative sections. They provide the structure within which detailed plots, tables, and code outputs can be updated as generic functions are consolidated into R packages and case-study scripts are refined. This separation is useful for SCRS deadlines: the main paper can present the framework, rationale, and selected examples, while the appendices can expand as diagnostics are standardised and additional model runs become available.
+
+In practice, reusable computation should live in packages or shared scripts, while the appendix Rmd files should remain thin case-study wrappers. Each appendix should record inputs, software versions, model runs, standard outputs, and the interpretation needed for review. This makes the appendices suitable both as technical documentation for a specific assessment and as templates for future SCRS case studies.
+
+\section{Conclusions}
+
+Internal, external, and robustness diagnostics answer different questions. Internal diagnostics test consistency with the fitted model and likelihood data. External diagnostics test biological and fishery consistency outside the likelihood. Robustness diagnostics test the stability of advice under pre-specified alternative structures and prediction-oriented checks.
+
+The SS3 shortfin mako scenarios used for SCRS/2026/074 show how the three classes can be applied in practice without overloading the main paper. Production-function and residual diagnostics reveal structure that standard fits may not show; maturity and selectivity comparisons explain why some residual patterns are expected consequences of the age structure; and robustness diagnostics indicate when reference points should be treated as conditional rather than definitive.
+
+Routine SCRS reporting should present the three classes together, with clear separation of verification, validation, uncertainty, and sensitivity. This paper introduces the framework with selected examples, supported by reproducible appendices that contain detailed diagnostics and code-generated outputs. This would improve transparency, make structural uncertainty easier to communicate, and help ensure that assessment outputs are used in ways that are proportionate to their diagnostic support.
+
+\appendix
+\input{appendices/internal-diagnostics.tex}
+\input{appendices/external-diagnostics.tex}
+\input{appendices/robustness-diagnostics.tex}
+
+\section*{Acknowledgements}
+
+We thank ICCAT and participants in the 2025 Shortfin Mako Shark Stock Assessment Meeting for making assessment materials available. LK acknowledges financial support from the Spanish Surface Longline Fishing Sector producer organisations OPP-Burela, OPNAPA, OPROMAR, and ORPAGU under the 2026 collaboration agreement.
+
+\bibliographystyle{plainnat}
+\bibliography{refs.bib}
+
+\end{document}
+
