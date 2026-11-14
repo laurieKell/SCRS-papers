@@ -1,0 +1,463 @@
+---
+title: "B/BMSY hindcast — raw ggplot templates"
+output:
+  html_document:
+    toc: true
+params:
+  study_id: "sma-natl"
+  scenario_id: "Scenario-1"
+  marginal_year: 2024
+  demo_peel: "-20"
+  figure_set: "paper"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 12,
+  fig.height = 6
+)
+
+library(dplyr)
+library(ggplot2)
+
+root <- normalizePath(getwd(), winslash = "/", mustWork = FALSE)
+if (!dir.exists(file.path(root, "studies"))) {
+  root <- normalizePath(file.path(root, ".."), winslash = "/", mustWork = FALSE)
+}
+source(file.path(root, "R", "project.R"), local = TRUE)
+source(file.path(root, "R", "backtest-mvln.R"), local = TRUE)
+source(file.path(root, "R", "backtest-peel-panels.R"), local = TRUE)
+load_sstruth()
+
+cfg <- backtest_config(
+  study_id = params$study_id,
+  scenario_id = params$scenario_id,
+  root = root
+)
+bt <- load_backtest_results(params$study_id, params$scenario_id, root)
+
+full_last <- tryCatch({
+  rep <- r4ss::SS_output(cfg$run_dir, verbose = FALSE)
+  sstruth::assessmentMaxYear(rep)
+}, error = function(e) NA_integer_)
+
+marginal_year <- .resolve_marginal_year(
+  bt,
+  params$marginal_year,
+  full_last = full_last
+)
+demo_peel <- as.character(params$demo_peel)
+
+# --- colours & labels (edit here) ---
+peel_levels <- c("0", "-5", "-10", "-20")
+peel_cols <- .peel_colours(peel_levels)
+peel_labels <- stats::setNames(
+  vapply(peel_levels, .peel_display_label, character(1)),
+  peel_levels
+)
+
+scenario_levels <- .backtest_scenario_levels()
+scenario_cols <- .backtest_scenario_colours()
+scenario_labels <- .backtest_scenario_labels()
+
+fig_dir <- figure_dir(params$figure_set, "robustness")
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+line_w <- 1.1
+
+clip_year <- function(d) {
+  if (!NROW(d) || !is.finite(full_last)) {
+    return(d)
+  }
+  d[d$year <= full_last, , drop = FALSE]
+}
+
+# --- deterministic trajectories (all harvest scenarios) ---
+traj <- bt$forecasts$trajectories %>%
+  filter(
+    forecast_scenario %in% scenario_levels,
+    peel %in% peel_levels,
+    is.finite(bratio)
+  ) %>%
+  clip_year() %>%
+  mutate(
+    peel = factor(as.character(peel), levels = peel_levels),
+    forecast_scenario = factor(forecast_scenario, levels = scenario_levels),
+    era = factor(era, levels = c("TIME", "FORE"))
+  )
+
+# --- peel MVLN (retro Hessian; shared across scenarios on fit years) ---
+peel_mvln <- bt$mvln$bratio %>%
+  filter(as.character(peel) %in% peel_levels) %>%
+  clip_year() %>%
+  mutate(peel = factor(as.character(peel), levels = peel_levels))
+
+# --- forecast MVLN (hindcast Hessian; scenario-specific) ---
+forecast_mvln <- bind_rows(lapply(scenario_levels, function(fc) {
+  tbl <- .forecast_bratio_mvln_tbl(bt, fc, use_forecast_mvln = TRUE)
+  if (!NROW(tbl)) {
+    return(NULL)
+  }
+  tbl %>%
+    filter(as.character(peel) %in% peel_levels) %>%
+    clip_year() %>%
+    mutate(
+      peel = factor(as.character(peel), levels = peel_levels),
+      forecast_scenario = fc
+    )
+})) %>%
+  mutate(forecast_scenario = factor(forecast_scenario, levels = scenario_levels))
+
+# --- MVLN draws at terminal year ---
+mvln_draws <- function(peels, scenarios) {
+  bind_rows(lapply(scenarios, function(fc) {
+    bind_rows(lapply(peels, function(pl) {
+      v <- .forecast_bratio_draws(
+        cfg, bt, pl, marginal_year,
+        forecast_scenario = fc,
+        use_forecast_mvln = TRUE
+      )
+      if (!length(v)) {
+        return(NULL)
+      }
+      data.frame(
+        peel = factor(pl, levels = peel_levels),
+        forecast_scenario = fc,
+        value = v,
+        stringsAsFactors = FALSE
+      )
+    }))
+  })) %>%
+    mutate(forecast_scenario = factor(forecast_scenario, levels = scenario_levels))
+}
+
+mvln_ci_at_year <- function(mvln_tbl, peels, scenarios) {
+  mvln_tbl %>%
+    filter(
+      as.character(peel) %in% peels,
+      forecast_scenario %in% scenarios,
+      year == marginal_year
+    ) %>%
+    select(peel, forecast_scenario, br_lo, br_hi, br_median)
+}
+
+y_limits <- function(...) {
+  vals <- unlist(list(...))
+  vals <- vals[is.finite(vals)]
+  rng <- range(vals)
+  pad <- diff(rng) * 0.05
+  if (!is.finite(pad) || pad <= 0) {
+    pad <- max(abs(rng)) * 0.05
+  }
+  rng + c(-pad, pad)
+}
+
+# Horizontal MVLN density polygons at terminal year (same y scale as trajectories)
+marginal_density_polygons <- function(
+  draws,
+  group_col,
+  x_year,
+  x_width = 2.5
+) {
+  if (!NROW(draws)) {
+    return(NULL)
+  }
+  groups <- unique(draws[[group_col]])
+  pieces <- lapply(groups, function(g) {
+    v <- draws$value[draws[[group_col]] == g]
+    v <- v[is.finite(v)]
+    if (length(v) < 2L) {
+      return(NULL)
+    }
+    dens <- stats::density(v)
+    if (!any(is.finite(dens$y)) || max(dens$y, na.rm = TRUE) <= 0) {
+      return(NULL)
+    }
+    w <- x_width * dens$y / max(dens$y, na.rm = TRUE)
+    data.frame(
+      year = c(rep(x_year, length(dens$x)), x_year + rev(w)),
+      bratio = c(dens$x, rev(dens$x)),
+      group = g,
+      stringsAsFactors = FALSE
+    )
+  })
+  pieces <- pieces[!vapply(pieces, is.null, logical(1))]
+  if (!length(pieces)) {
+    return(NULL)
+  }
+  out <- bind_rows(pieces)
+  names(out)[names(out) == "group"] <- group_col
+  out[[group_col]] <- factor(out[[group_col]], levels = levels(draws[[group_col]]))
+  out
+}
+
+marginal_marker_segments <- function(
+  ci,
+  det,
+  group_col,
+  x_year,
+  x_width = 2.5,
+  tick = 0.12
+) {
+  if (!NROW(ci)) {
+    return(NULL)
+  }
+  det <- det[, c(group_col, "bratio"), drop = FALSE]
+  names(det)[2] <- "det"
+  rows <- lapply(seq_len(nrow(ci)), function(i) {
+    g <- ci[[group_col]][i]
+    dv <- det$det[match(as.character(g), as.character(det[[group_col]]))]
+    data.frame(
+      bratio = c(ci$br_lo[i], ci$br_hi[i], ci$br_median[i], dv),
+      kind = c("br_lo", "br_hi", "br_median", "det"),
+      stringsAsFactors = FALSE
+    )
+  })
+  seg <- bind_rows(rows)
+  seg[[group_col]] <- ci[[group_col]]
+  seg$x0 <- x_year
+  seg$x1 <- x_year + tick
+  seg <- seg[is.finite(seg$bratio), , drop = FALSE]
+  seg$linetype <- ifelse(
+    seg$kind == "det",
+    "dotdash",
+    ifelse(seg$kind == "br_median", "solid", "dashed")
+  )
+  seg$linewidth <- ifelse(seg$kind == "br_median", 0.9, 0.6)
+  seg
+}
+```
+
+Generic layers:
+
+- **Ribbon** = MVLN 5–95% (`br_lo`–`br_hi`)
+- **Dashed line** = MVLN median (`br_median`)
+- **Dashed/solid line** = deterministic fit (`TIME`) / projection (`FORE`)
+- **Marginal strip** = horizontal MVLN density at `marginal_year` (same y axis as trajectories) + CI / median / deterministic ticks
+
+All series are clipped at **`r if (is.finite(full_last)) full_last else "the assessment terminal year"`** (last year of the unpeeled assessment).
+
+---
+
+## Utility 1 — reported catch by peel
+
+One harvest scenario (`catchReported`); colour = retrospective peel. MVLN ribbon uses the peel retro Hessian (fit years); marginals at **`r marginal_year`**.
+
+```{r fig-catch-by-peel, fig.width = 12, fig.height = 6}
+fc <- "catchReported"
+peels <- peel_levels
+marg_w <- 2.5
+
+rib <- filter(peel_mvln, peel %in% peels)
+trT <- filter(traj, forecast_scenario == fc, peel %in% peels, era == "TIME")
+trF <- filter(traj, forecast_scenario == fc, peel %in% peels, era == "FORE")
+drw <- mvln_draws(peels, fc)
+ci  <- mvln_ci_at_year(forecast_mvln, peels, fc)
+det <- filter(traj, forecast_scenario == fc, peel %in% peels, year == marginal_year)
+dens_poly <- marginal_density_polygons(drw, "peel", marginal_year, marg_w)
+mark_seg <- marginal_marker_segments(ci, det, "peel", marginal_year, tick = 0.15)
+
+y_lim <- y_limits(
+  rib$br_lo, rib$br_hi, rib$br_median,
+  trT$bratio, trF$bratio, drw$value
+)
+x_lim <- range(c(trT$year, trF$year, rib$year, marginal_year + marg_w))
+
+fig_catch_by_peel <- ggplot() +
+  geom_ribbon(
+    data = rib,
+    aes(x = year, ymin = br_lo, ymax = br_hi, fill = peel),
+    alpha = 0.18,
+    colour = NA
+  ) +
+  geom_line(
+    data = rib,
+    aes(x = year, y = br_median, colour = peel, group = peel),
+    linewidth = line_w * 0.85,
+    linetype = "dashed"
+  ) +
+  geom_line(
+    data = trT,
+    aes(x = year, y = bratio, colour = peel, group = peel),
+    linewidth = line_w * 0.75,
+    linetype = "dashed"
+  ) +
+  geom_line(
+    data = trF,
+    aes(x = year, y = bratio, colour = peel, group = peel),
+    linewidth = line_w,
+    linetype = "solid"
+  ) +
+  {
+    if (!is.null(dens_poly) && NROW(dens_poly)) {
+      geom_polygon(
+        data = dens_poly,
+        aes(x = year, y = bratio, fill = peel),
+        alpha = 0.25,
+        colour = NA
+      )
+    }
+  } +
+  {
+    if (!is.null(mark_seg) && NROW(mark_seg)) {
+      geom_segment(
+        data = mark_seg,
+        aes(
+          x = x0,
+          xend = x1,
+          y = bratio,
+          yend = bratio,
+          colour = peel,
+          linetype = linetype,
+          linewidth = linewidth
+        ),
+        show.legend = FALSE
+      )
+    }
+  } +
+  geom_vline(
+    xintercept = marginal_year,
+    colour = "grey40",
+    linetype = 2,
+    linewidth = 0.35
+  ) +
+  scale_colour_manual(values = peel_cols, labels = peel_labels, name = "Peel") +
+  scale_fill_manual(values = peel_cols, labels = peel_labels, guide = "none") +
+  coord_cartesian(xlim = x_lim, ylim = y_lim) +
+  labs(
+    title = paste0(scenario_labels[[fc]], " — ", cfg$scenario_label),
+    subtitle = paste0(
+      "Marginal MVLN density at ", marginal_year,
+      " shares y axis; ticks = 5/95%, median, deterministic"
+    ),
+    x = "Year",
+    y = "B/BMSY"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+print(fig_catch_by_peel)
+ggsave(
+  file.path(fig_dir, "backtest-bratio-catch-by-peel.png"),
+  fig_catch_by_peel,
+  width = 12,
+  height = 6,
+  dpi = 200
+)
+```
+
+---
+
+## Utility 2 — peel 20 yr by harvest scenario
+
+Single peel (`r peel_labels[[demo_peel]]`); colour = reported catch, $F=0$, $F=FMSY$. Scenario-specific MVLN where available.
+
+```{r fig-peel20-by-scenario, fig.width = 12, fig.height = 6}
+pl <- demo_peel
+scenarios <- scenario_levels
+marg_w <- 2.5
+
+rib <- filter(forecast_mvln, peel == pl, forecast_scenario %in% scenarios)
+trT <- filter(traj, peel == pl, forecast_scenario %in% scenarios, era == "TIME")
+trF <- filter(traj, peel == pl, forecast_scenario %in% scenarios, era == "FORE")
+drw <- mvln_draws(pl, scenarios)
+ci  <- mvln_ci_at_year(forecast_mvln, pl, scenarios)
+det <- filter(traj, peel == pl, forecast_scenario %in% scenarios, year == marginal_year)
+dens_poly <- marginal_density_polygons(drw, "forecast_scenario", marginal_year, marg_w)
+mark_seg <- marginal_marker_segments(ci, det, "forecast_scenario", marginal_year, tick = 0.15)
+
+y_lim <- y_limits(
+  rib$br_lo, rib$br_hi, rib$br_median,
+  trT$bratio, trF$bratio, drw$value
+)
+x_lim <- range(c(trT$year, trF$year, rib$year, marginal_year + marg_w))
+
+fig_peel20_by_scenario <- ggplot() +
+  geom_ribbon(
+    data = rib,
+    aes(x = year, ymin = br_lo, ymax = br_hi, fill = forecast_scenario),
+    alpha = 0.18,
+    colour = NA
+  ) +
+  geom_line(
+    data = rib,
+    aes(x = year, y = br_median, colour = forecast_scenario, group = forecast_scenario),
+    linewidth = line_w * 0.85,
+    linetype = "dashed"
+  ) +
+  geom_line(
+    data = trT,
+    aes(x = year, y = bratio, colour = forecast_scenario, group = forecast_scenario),
+    linewidth = line_w * 0.75,
+    linetype = "dashed"
+  ) +
+  geom_line(
+    data = trF,
+    aes(x = year, y = bratio, colour = forecast_scenario, group = forecast_scenario),
+    linewidth = line_w,
+    linetype = "solid"
+  ) +
+  {
+    if (!is.null(dens_poly) && NROW(dens_poly)) {
+      geom_polygon(
+        data = dens_poly,
+        aes(x = year, y = bratio, fill = forecast_scenario),
+        alpha = 0.25,
+        colour = NA
+      )
+    }
+  } +
+  {
+    if (!is.null(mark_seg) && NROW(mark_seg)) {
+      geom_segment(
+        data = mark_seg,
+        aes(
+          x = x0,
+          xend = x1,
+          y = bratio,
+          yend = bratio,
+          colour = forecast_scenario,
+          linetype = linetype,
+          linewidth = linewidth
+        ),
+        show.legend = FALSE
+      )
+    }
+  } +
+  geom_vline(
+    xintercept = marginal_year,
+    colour = "grey40",
+    linetype = 2,
+    linewidth = 0.35
+  ) +
+  scale_colour_manual(values = scenario_cols, labels = scenario_labels, name = "Harvest") +
+  scale_fill_manual(values = scenario_cols, labels = scenario_labels, guide = "none") +
+  coord_cartesian(xlim = x_lim, ylim = y_lim) +
+  labs(
+    title = paste0(peel_labels[[pl]], " — ", cfg$scenario_label),
+    subtitle = paste0(
+      "Marginal MVLN density at ", marginal_year,
+      " shares y axis; ticks = 5/95%, median, deterministic"
+    ),
+    x = "Year",
+    y = "B/BMSY"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+print(fig_peel20_by_scenario)
+ggsave(
+  file.path(fig_dir, "backtest-bratio-peel20-by-scenario.png"),
+  fig_peel20_by_scenario,
+  width = 12,
+  height = 6,
+  dpi = 200
+)
+```
+
+Saved to `output/figs/paper/robustness/`:
+
+- `backtest-bratio-catch-by-peel.png`
+- `backtest-bratio-peel20-by-scenario.png`
