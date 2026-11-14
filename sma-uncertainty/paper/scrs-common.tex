@@ -1,0 +1,52 @@
+%% Shared SCRS preamble fragments (input after \documentclass)
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{setspace}
+\usepackage{authblk}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{placeins}
+\usepackage{float}
+\usepackage{amsmath,amssymb}
+\usepackage{enumitem}
+\usepackage{url}
+\usepackage[round]{natbib}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue}
+
+\setstretch{1.0}
+\parskip=6pt
+\parindent=0pt
+\pagestyle{empty}
+\emergencystretch=3em
+\graphicspath{{figs/}}
+
+\newcommand{\incfig}[2][]{%
+  \IfFileExists{figs/#2}{%
+    \includegraphics[#1]{#2}%
+  }{%
+    \fbox{\begin{minipage}{0.92\linewidth}\centering\vspace{1.5em}
+      Missing figure: \texttt{#2}\\[0.5em]
+      {\small regenerate from \texttt{Rmd/sma-uncertainty.Rmd}}
+      \vspace{1.5em}\end{minipage}}%
+  }%
+}
+
+\input{numbers.tex}
+\InputIfFileExists{numbers-ssproject.tex}{}{}
+
+\newcommand{\PG}{P(\mathrm{green})}
+\newcommand{\BB}{B/B_{\mathrm{MSY}}}
+\newcommand{\SB}{\mathrm{SSF}/\mathrm{SSF_{MSY}}}
+\newcommand{\FF}{F/F_{\mathrm{MSY}}}
+
+\date{}
+
+\renewcommand\thesection{\arabic{section}.}
+\renewcommand\thesubsection{\arabic{section}.\arabic{subsection}}
+\makeatletter
+\renewcommand\section{\@startsection{section}{1}{\z@}%
+  {-1.5ex \@plus -1ex \@minus -.2ex}{0.8ex \@plus .2ex}{\normalfont\bfseries}}
+\renewcommand\subsection{\@startsection{subsection}{2}{\z@}%
+  {-1.25ex \@plus -1ex \@minus -.2ex}{0.6ex \@plus .2ex}{\normalfont\itshape}}
+\makeatother

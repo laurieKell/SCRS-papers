@@ -1,0 +1,455 @@
+\documentclass[11pt,a4paper]{article}
+\input{scrs-common.tex}
+
+\title{\textbf{Kobe Strategy Matrix Projections: Comparing\\
+SS3-MVLN, SS3-MCMC, JABBA and JABBA with state-dependent process error\\
+\large (worked example: North Atlantic shortfin mako)}\\[0.5em]
+\large SCRS/2026/XXX --- for WGSAM / Shark WG}
+
+\author[1]{L. T. Kell}
+\affil[1]{Centre for Environmental Policy, Imperial College London, London, United Kingdom.\\
+\texttt{laurie@seaplusplus.co.uk}}
+
+\begin{document}
+\maketitle
+
+\begin{center}\textit{SUMMARY}\end{center}
+
+This paper records the four constant-catch projections used to apply
+rebuilding-time reference points to North Atlantic shortfin mako (SMA-N).
+The stock is a non-retained bycatch under Rec.~21-09, which requires
+rebuilding with probability 60--70\% by 2070. The same catch grid, years and
+definition of Kobe green are used for SS3-MVLN, SS3-MCMC, JABBA3 with
+constant process error, and JABBA3 with state-dependent process error. Green
+is $B \ge B_{\mathrm{MSY}}$ and $F \le F_{\mathrm{MSY}}$, with biomass at the
+end of the year. For SS3-MVLN that probability is the bivariate normal
+probability written in Section~\ref{sec:mvln}; the numbers below are a
+sample of \nDraw{} draws from that distribution. The other three
+projections count their own draws. The reported products
+are the catch at $\PG = 0.6$ and $0.7$ in 2045 and 2070, and the rebuilding
+year at each catch. On this grid the two JABBA3 projections remain above both
+targets at 2{,}300~t, so their risk-equivalent catch lies above the grid,
+while the SS3-MVLN catch at 60\% in 2070 is \tacMvlnSeventySixty~t. The
+SS3-MCMC contrast still uses a different recruitment constraint
+(\texttt{do\_recdev} = 2) and is illustrative only. The JABBA3 runs are an
+SS3-to-surplus-production bridge (\texttt{ss2jabba3}); they are not the Shark
+WG JAGS scenarios. The paper does not set Species Group catch advice.
+
+\textbf{KEYWORDS:} rebuilding, Kobe strategy matrix, MVLN, MCMC, JABBA3,
+process error, shortfin mako, non-retained bycatch, Rec.~21-09
+
+\section{Introduction}
+
+Rebuilding-time reference points fix a probability and a year, then read the
+catch, or fix the catch and read the year \citep{KellAcceptedFaF}. That is
+the forward-looking form of risk equivalence \citep{Fischer2023}. For SMA-N
+the probability and the year are already set: Rec.~21-09 requires $\PG = 0.6$
+to $0.7$ by 2070 for a stock whose retention is prohibited
+\citep{ICCAT2021Rec2109,ICCAT2022Rec2211}. The object that has to be inverted
+is a Kobe strategy matrix.
+
+The 2026 assessment provides the SS3 base case and a Kobe matrix filled by
+drawing from the multivariate log-normal \citep{Liniers2026}. This paper
+places four constant-catch projections on one grid, so the catch at
+$\PG = 0.6$ and $0.7$, and the year at which each catch meets those
+probabilities, can be compared. The four are SS3-MVLN, SS3-MCMC, JABBA3
+with constant process error, and JABBA3 with state-dependent process error.
+The paper specifies how each projection fills
+$\PG(\mathrm{catch}, \mathrm{year})$ and reports the catches and rebuilding
+years. It does not set Species Group catch advice. The endorsed projection
+remains the SS3 run adopted by the Shark WG.
+
+\section{Shared design}
+
+One stock, the 2026 SS3 base configuration
+\texttt{HW2e\_HW2d\_InitFprior} \citep{Liniers2026}. One constant-catch grid:
+0 to 2{,}300~t in steps of 100~t, plus 250~t and 1{,}883~t. Projection years
+2025--2070; the assessment ends in \histEnd. Two target probabilities, 0.6
+and 0.7. Two years at which the catch is read, 2045 and 2070.
+
+Green is the joint event $B \ge B_{\mathrm{MSY}}$ and
+$F \le F_{\mathrm{MSY}}$. For SS3, $B$ is end-of-year spawning stock fecundity
+(SSF), paired with $F$ of the same year, as in the 2026 Kobe matrix. For
+JABBA3, $B$ is surplus-production biomass. Absolute tonnes need not match
+across those scales. The comparison uses $\BB$, $\FF$ and $\PG$.
+
+For each projection and each catch, $\PG$ is interpolated on catch at the
+target year. The catch at which it equals 0.6 or 0.7 is the risk-equivalent
+catch. If $\PG$ is still above the target at 2{,}300~t, the table records
+2{,}300~t and the text states that the crossing lies above the grid. The
+rebuilding year is the last time $\PG$ crosses the target, provided the
+series ends at or above the target (\texttt{kobeRebuildTime}). A first
+crossing is not used: for a late-maturing stock $\PG$ can dip and recover,
+and an early crossing would mark a stock that is still on the way down.
+
+\begin{table}[htbp]
+\caption{\label{tab:four}The four projections. They share the catch grid, the
+years and the definition of green. They differ in the model and in how
+$\PG$ is obtained.}
+\centering
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}p{0.34\textwidth}}
+\toprule
+Projection & Model & How $\PG$ is obtained\\
+\midrule
+SS3-MVLN & SS3, \texttt{do\_recdev}${}=1$ & Closed-form bivariate normal\\
+SS3-MCMC & SS3, \texttt{do\_recdev}${}=2$ & Proportion of posterior draws\\
+JABBA3 & Pella--Tomlinson, constant $\sigma$ & Proportion of \texttt{jb3\_project} draws\\
+JABBA3 dyn & Same production function, $\sigma_t$ state-dependent & Proportion of \texttt{jb3\_project} draws\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Figures and the numbers quoted below are written by
+\texttt{Rmd/sma-uncertainty.Rmd}. The shared knit also draws the recDev2
+MVLN (\texttt{do\_recdev} = 2) and an \texttt{FLasher} process-error
+series. Those two series appear in the trajectory, matrix, risk and
+rebuilding figures. They are not among the four projections in
+Table~\ref{tab:four}, and they are not used in Table~\ref{tab:tacfour}.
+
+\section{SS3-MVLN}
+\label{sec:mvln}
+
+The data-rich delta-method projection uses the recDev1 base case, in which
+recruitment deviations are constrained to sum to zero (\texttt{do\_recdev}
+= 1). \texttt{ss3diags2::ss3mvln} and \texttt{ss3stk} supply, for each catch
+and year, the log-scale means $\mu_B$ and $\mu_F$, standard deviations
+$\sigma_B$ and $\sigma_F$, and correlation $\rho$ of end-of-year SSF and $F$
+\citep{ss3diags2,Kell2023MVLN}. With $\Phi$ the standard normal distribution
+function and $\Phi_2$ the standard bivariate normal distribution function,
+\begin{align}
+  P(F \le F_{\mathrm{MSY}}) &= \Phi\!\left(-\mu_F/\sigma_F\right), \\
+  P(B \ge B_{\mathrm{MSY}}) &= \Phi\!\left(\mu_B/\sigma_B\right), \\
+  \PG &= \Phi_2\!\left(\mu_B/\sigma_B,\; -\mu_F/\sigma_F;\; -\rho\right).
+\end{align}
+The log-scale correlation used here is the exact transform
+$\log(1 + \rho\,\mathrm{CV}_B\mathrm{CV}_F)$. These values are exact for the
+multivariate log-normal, so the matrix does not have to be simulated.
+The catches and the strategy matrix printed below are the knit's sample of
+\nDraw{} draws from that distribution. Near one half, the standard error of
+a proportion from \nDraw{} draws is about 1.6 percentage points.
+Appendix~\ref{app:mvln} compares the closed form itself with the published
+SMA-N matrix, which was filled by drawing from the same distribution.
+
+\section{SS3-MCMC}
+
+The posterior projection uses the same TAC grid, re-evaluated with
+\texttt{ss -mceval}. $\PG$ is the proportion of saved draws in the green
+quadrant. The chain used here has \nMcmc{} draws after thinning, across
+\mcmcCatches{} catches. Within each draw, SSF, $F$ and catch are scaled by
+that draw's own $\mathrm{SSF_{MSY}}$, $F_{\mathrm{MSY}}$ and MSY.
+
+The available chain was run with unconstrained recruitment deviations
+(\texttt{do\_recdev} = 2). The MVLN base case uses \texttt{do\_recdev} = 1.
+Reference points therefore differ between the two SS3 fits
+(Table~\ref{tab:refpts}): the posterior median of $\mathrm{SSF_{MSY}}$
+differs from the base-case MLE by \rpSsbmsyDiff\%, and MSY by \rpMsyDiff\%.
+The base-case MLE has $\mathrm{SSF_{MSY}} = \rpBaseSsbmsy$ and
+MSY $= \rpBaseMsy$~t; the MCMC model is centred near
+$\mathrm{SSF_{MSY}} = \rpMcSsbmsy$ and MSY $= \rpMcMsy$~t. Differences
+between SS3-MVLN and SS3-MCMC on this grid confound the uncertainty method
+with that constraint. They are reported so the projection can be inspected,
+and they are not a same-model test of delta method against MCMC
+\citep{SharkWG2026}.
+
+\input{tabs/refpts.tex}
+
+\section{JABBA3 with constant process error}
+
+The surplus-production tier is a Pella--Tomlinson model in JABBA3
+\citep{JABBA3,Winker2018}. \texttt{ss3diags2::ss2jabba3} reads catch in
+weight and the CPUE series from the recDev1 SS3 report. The production shape
+$m$ is taken from \texttt{ss3diags2::ss3\_spm}. SMA spawning output is in
+numbers, so $r$ and $K$ on that curve are not used as biomass priors. The
+$r$ prior is log-normal with median 0.08 and log-scale standard deviation
+0.4. The shape prior is log-normal, centred on the SS3 production-curve $m$,
+with log-scale standard deviation 0.15. Process error has constant standard
+deviation (\texttt{sdb.form = "const"}). The fit uses \nDraw{} draws. Constant
+catches are projected with \texttt{jb3\_project} (\texttt{imp.years} = 2) and
+$\PG$ is the proportion of draws in the green quadrant
+(\texttt{jb3\_kobematrix}).
+
+This is a reproducible bridge from the SS3 observation extract. It is not a
+re-run of the assessment WG's JAGS JABBA scenarios, and it is not a candidate
+to replace the endorsed SS3 projection while recovery depends on the lag
+between exploitable biomass and spawners \citep{Winker2020SMA,SharkWG2026}.
+
+\section{JABBA3 with state-dependent process error}
+
+The second JABBA3 projection keeps the same production function and the same
+priors. Process error is state-dependent,
+\begin{equation}
+\sigma_t = \sigma_{\mathrm{MSY}}\left(B_t/B_{\mathrm{MSY}}\right)^{-k},
+\end{equation}
+from \texttt{jb3\_tier2} with no maturity lag, so the lag in the production
+function is unchanged. $\sigma_{\mathrm{MSY}}$ is scaled so that the average
+process variance matches the constant-SD fit, and $k$ follows the life-history
+prior in \texttt{jb3\_tier2}. The projection uses the same catch grid, the
+same \nDraw{} draws and the same two-year implementation lag. The only
+designed difference from the constant-SD run is the state dependence of
+$\sigma_t$.
+
+\section{Results}
+
+\subsection{Status at the start of the projection}
+In \histEnd{} the median $\BB$ (95\% interval) was \histBMvln{} under
+SS3-MVLN, \histBMcmc{} under SS3-MCMC, \histBJabba{} under JABBA3 and
+\histBJabbaDyn{} under JABBA3 dyn. The corresponding $\FF$ were
+\histFMvln, \histFMcmc, \histFJabba{} and \histFJabbaDyn.
+Figure~\ref{fig:phase} is the joint distribution of those draws in \histEnd,
+with the marginal densities of $\BB$ and $\FF$.
+In the first projection year, at the lowest catch, $\PG$ was
+\statusGreenMvln\% (SS3-MVLN), \statusGreenMcmc\% (SS3-MCMC),
+\statusGreenJabba\% (JABBA3) and \statusGreenJabbaDyn\% (JABBA3 dyn).
+
+\begin{figure}[H]
+  \centering
+  \incfig[width=\textwidth]{hist-fig-1.png}
+  \caption{Historical $\BB$ (top) and $\FF$ (bottom): median and 95\%
+    interval. The panel on the right of each row is the marginal
+    distribution in \histEnd. SS3 biomass is end-of-year SSF. SS3-MVLN uses
+    \texttt{do\_recdev} = 1; SS3-MCMC uses \texttt{do\_recdev} = 2.}
+  \label{fig:hist}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \incfig[width=0.78\textwidth]{phase-mar-1.png}
+  \caption{Joint distribution of $\BB$ and $\FF$ in \histEnd, with marginal
+    densities. Each cloud is a sample of the historical draws for that
+    projection. The vertical and horizontal lines are $B_{\mathrm{MSY}}$ and
+    $F_{\mathrm{MSY}}$.}
+  \label{fig:phase}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \incfig[width=\textwidth]{status-bar-1.png}
+  \caption{Kobe quadrant probabilities in \histEnd{} for the four
+    projections that have a historical draw. Each bar is the proportion of
+    draws in that quadrant. This is assessment-year status. The
+    first-year projection probabilities are the percentages in the text.}
+  \label{fig:status}
+\end{figure}
+
+\subsection{Projected biomass and fishing mortality}
+Figures~\ref{fig:projb} and~\ref{fig:projf} run from 2000 through the
+projection. Columns are the constant catches 0, 250, 1{,}200, 1{,}883 and
+2{,}300~t. Rows, from top to bottom, are SS3 recDev1 (the SS3-MVLN
+projection), the recDev2 MVLN, SS3-MCMC, FLasher, JABBA3 and JABBA3 dyn.
+Ribbons are the 50, 80 and 95\% intervals and the line is the median. The
+dashed line is $B_{\mathrm{MSY}}$ or $F_{\mathrm{MSY}}$. The dotted vertical
+line is the last assessment year. MVLN draws are independent by year, so
+the two MVLN rows have no line joining one draw through time. MCMC, FLasher
+and both JABBA3 rows join the same draw from the historical years into the
+projection. FLasher history is the MCMC sample that conditions that
+projection.
+
+\begin{figure}[H]
+  \centering
+  \incfig[width=\textwidth]{proj-b-1.png}
+  \caption{Historical and projected $\BB$ by series and constant catch.
+    Layout and line conventions are given in the text. The catch table uses
+    only the four projections in Table~\ref{tab:four}.}
+  \label{fig:projb}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \incfig[width=\textwidth]{proj-f-1.png}
+  \caption{Historical and projected $\FF$. Same rows, catches and intervals
+    as Figure~\ref{fig:projb}.}
+  \label{fig:projf}
+\end{figure}
+
+\subsection{Kobe strategy matrix}
+Figure~\ref{fig:k2sm} is $\PG$ by catch and year for the same six series.
+The two MVLN panels are the \nDraw{}-draw sample described in
+Section~\ref{sec:mvln}. SS3-MCMC, FLasher and both JABBA3 panels are
+proportions of their own draws. Table~\ref{tab:tacfour} uses the four
+projections only.
+
+\begin{figure}[H]
+  \centering
+  \incfig[width=\textwidth]{k2sm-1.png}
+  \caption{Kobe strategy matrix: $\PG$ (\%) by catch and year. recDev2 and
+    FLasher are the two extra series from the shared knit.}
+  \label{fig:k2sm}
+\end{figure}
+
+\subsection{Risk-equivalent catch}
+At zero catch, $\PG$ in 2045 was \greenZeroMvlnFortyFive\% (SS3-MVLN),
+\greenZeroMcmcFortyFive\% (SS3-MCMC), \greenZeroJabbaFortyFive\% (JABBA3)
+and \greenZeroJabbaDynFortyFive\% (JABBA3 dyn). In 2070 the same catches
+give \greenZeroMvlnSeventy\%, \greenZeroMcmcSeventy\%,
+\greenZeroJabbaSeventy\% and \greenZeroJabbaDynSeventy\%.
+
+The catch at $\PG = 0.6$ in 2070 is \tacMvlnSeventySixty~t under SS3-MVLN
+and \tacMcmcSeventySixty~t under SS3-MCMC. At $\PG = 0.7$ in 2070 the
+catches are \tacMvlnSeventySeventy~t and \tacMcmcSeventySeventy~t
+(Table~\ref{tab:tacfour}, Figure~\ref{fig:risk}). Both JABBA3 projections
+stay above 0.6 and 0.7 at every catch on the grid, including 2{,}300~t.
+At 2{,}300~t in 2070, $\PG$ is 72\% with constant process error and 80\%
+with state-dependent process error. The risk-equivalent catch for both
+JABBA3 projections is therefore above 2{,}300~t, and the table records the
+top of the grid. The SS3-MVLN catch at 60\% in 2070 is at least
+\tacRangeSixtySeventy~t below that ceiling. State-dependent process error
+does not pull the surplus-production tier toward the SS3 catches. It is the
+more optimistic of the two JABBA3 projections.
+
+The SS3-MVLN and SS3-MCMC columns should not be read as a pure method
+contrast (Section~4). The JABBA3 columns are the structural contrast: the
+same nominal $\PG$ does not select the same catch once the projection drops
+the age-structured lag.
+
+\begin{figure}[H]
+  \centering
+  \incfig[width=\textwidth]{risk-fig-1.png}
+  \caption{$\PG$ against catch in 2030, 2045 and 2070. Dashed lines are
+    $\PG = 0.6$ and $0.7$. The catch at which a curve crosses a line is the
+    risk-equivalent catch. recDev2 and FLasher are drawn with the four
+    projections; Table~\ref{tab:tacfour} reports the four only.}
+  \label{fig:risk}
+\end{figure}
+
+\begin{table}[htbp]
+\caption{\label{tab:tacfour}Catch (t) at which $\PG$ equals the target.
+A value of 2{,}300~t is the top of the grid: the target is still met there,
+so the crossing lies above the grid.}
+\centering
+\begin{tabular}[t]{lrrrr}
+\toprule
+Projection & 2045 @ 60\% & 2070 @ 60\% & 2045 @ 70\% & 2070 @ 70\%\\
+\midrule
+SS3-MVLN & \tacMvlnFortyFiveSixty & \tacMvlnSeventySixty &
+  \tacMvlnFortyFiveSeventy & \tacMvlnSeventySeventy\\
+SS3-MCMC & \tacMcmcFortyFiveSixty & \tacMcmcSeventySixty &
+  \tacMcmcFortyFiveSeventy & \tacMcmcSeventySeventy\\
+JABBA3 & \tacJabbaFortyFiveSixty & \tacJabbaSeventySixty &
+  \tacJabbaFortyFiveSeventy & \tacJabbaSeventySeventy\\
+JABBA3 dyn & \tacJabbaDynFortyFiveSixty & \tacJabbaDynSeventySixty &
+  \tacJabbaDynFortyFiveSeventy & \tacJabbaDynSeventySeventy\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Rebuilding year}
+Figure~\ref{fig:rebuild} plots the rebuilding year against catch for each
+target. Vertical separation at a given catch is the difference in rebuilding
+time. Both JABBA3 curves lie on the first projection year across this grid,
+because $\PG$ is already above the target, so the catch inversion in
+Table~\ref{tab:tacfour} is the summary for those two projections. The
+recDev2 MVLN and FLasher curves are drawn with the four projections and are
+not part of that table.
+
+\begin{figure}[H]
+  \centering
+  \incfig[width=\textwidth]{rebuild-fig-1.png}
+  \caption{Rebuilding year against catch. The year is the last crossing of
+    the target $\PG$, given that the series ends at or above the target.
+    Line type is the target (0.6 or 0.7). A curve along 2025 is a series
+    that already meets the target at the start of the projection.}
+  \label{fig:rebuild}
+\end{figure}
+
+\section{Discussion}
+
+The four projections answer one question. At a fixed $\PG$ and year, what
+catch does each projection return, and at a fixed catch, in what year is
+the target met. They do not replace the SS3 projection endorsed by the
+Shark WG \citep{Liniers2026}.
+
+On this grid the SS3-MVLN catch at 60\% in 2070 is \tacMvlnSeventySixty~t.
+Both JABBA3 projections are still above 60\% and 70\% at 2{,}300~t. The gap
+is structural. JABBA3 has no age-structured lag between exploitable biomass
+and spawners \citep{Winker2020SMA}, and state-dependent process error makes
+that tier more optimistic, not closer to SS3. The bridge is included so
+that disagreement is visible.
+
+The SS3-MCMC catches are lower than the SS3-MVLN catches. The MCMC was run
+with \texttt{do\_recdev} = 2 and the MVLN base case with
+\texttt{do\_recdev} = 1, and the reference points differ by about a third
+(Table~\ref{tab:refpts}). That contrast is not a test of the delta method
+against MCMC.
+
+The MVLN probability has the closed form in Section~\ref{sec:mvln}. Nothing
+in that expression has to be estimated: the means, standard deviations and
+correlation are already in the SS3 covariance. The 2026 matrix was
+nevertheless filled by drawing \linN{} times from that distribution, up
+from 15{,}000 ``to stabilize results'' \citep{Liniers2026}. That simulation
+was unnecessary. Drawing from a distribution whose probability is already
+known does not calculate the probability. It replaces an exact value with a
+sample mean, and then more draws are used to average the noise back out.
+Appendix~\ref{app:mvln} shows that the closed form reproduces the published
+cells, and that the differences which remain are that noise. The catches in
+this paper are themselves a sample of \nDraw{} draws, reported as such.
+The matrix should be evaluated, not simulated.
+
+Two further series are drawn in the figures. The recDev2 MVLN uses the
+recruitment constraint of the MCMC model, so it is the partner for a later
+comparison that is not confounded with \texttt{do\_recdev}. FLasher carries
+block-resampled recruitment residuals on an MCMC terminal state. Neither
+series is in Table~\ref{tab:tacfour}.
+
+\section{Conclusions}
+\begin{enumerate}[leftmargin=*]
+  \item Use one catch grid, one pair of target probabilities and one
+    definition of green for SS3-MVLN, SS3-MCMC, JABBA3 and JABBA3 with
+    state-dependent process error.
+  \item Fill an MVLN Kobe matrix in closed form. Do not derive those
+    probabilities by Monte Carlo. The 2026 matrix was filled by simulation
+    \citep{Liniers2026}; that step was unnecessary, because $\PG$ was
+    already the bivariate normal probability of the reported covariance.
+    Fill SS3-MCMC and both JABBA3 cells by counting draws, because those
+    distributions have no such form.
+  \item Report the catch at $\PG = 0.6$ and $0.7$ in 2045 and 2070, and the
+    rebuilding year. On this SMA-N grid the JABBA3 catches lie above
+    2{,}300~t; the SS3-MVLN catch at 60\% in 2070 is \tacMvlnSeventySixty~t.
+  \item Do not treat the SS3-MVLN versus SS3-MCMC difference as a method
+    test until both use the same \texttt{do\_recdev}. Do not treat the
+    JABBA3 bridge as Shark WG catch advice.
+\end{enumerate}
+
+\appendix
+\renewcommand\thesection{Appendix \Alph{section}.}
+\section{Closed-form MVLN against the published Kobe matrix}
+\label{app:mvln}
+
+The 2026 SMA-N Kobe matrix was filled by Monte Carlo
+\citep{Liniers2026}. \linN{} draws were taken from the multivariate
+log-normal, increased from 15{,}000 ``to stabilize results''. Under the
+model in Section~\ref{sec:mvln} there was nothing to stabilize. The means,
+standard deviations and correlation are the SS3 covariance, and $\PG$ is
+the bivariate normal probability of those five numbers. A draw from that
+distribution does not estimate $\PG$. It substitutes a binomial proportion
+for a probability that is already known, and the only effect of a larger
+sample is to hide the substitution. A probability near one half, estimated
+from \linN{} draws, still has a standard error of about 0.35 percentage
+points, enough to move a rounded cell across a boundary. The simulation was
+unnecessary. It added no information, and the discrepancies below are the
+noise it introduced.
+
+To confirm that the closed form reproduces the published table, \linCells{}
+cells of that matrix were recomputed from the same SS3 runs
+(Table~\ref{tab:liniers}). Matching the published cells requires the
+conventions in \texttt{ss3diags2::ss3mvln}, as in
+\texttt{ss3diags::SSdeltaMVLN}: end-of-year SSF, which is the SS3
+\texttt{Bratio} of the following year paired with $F$ of the current year,
+and the log-scale correlation set equal to the natural-scale correlation.
+With those conventions the analytical values lie within one percentage point
+of the published values in \linWithinOne{} of the \linCells{} cells, and
+within \linMaxRounded{} percentage points in every cell. The remainder is
+rounding plus the Monte Carlo error of the \linN{} draws.
+
+The projections in the body of this paper do not use that natural-scale
+correlation. They use $\log(1 + \rho\,\mathrm{CV}_B\mathrm{CV}_F)$. In these
+cells the two conventions change $\PG$ by at most \trDiff{} percentage
+points. Both are analytical. The natural-scale correlation is used only so
+that Table~\ref{tab:liniers} is a comparison with the published matrix, not
+a second projection.
+
+\input{tabs/liniers.tex}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

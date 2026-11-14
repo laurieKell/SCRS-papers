@@ -1,0 +1,1039 @@
+---
+title: "SCRS/2026: Projection uncertainty for North Atlantic shortfin mako (computations)"
+author: "Laurence T. Kell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2:
+    toc: true
+    number_sections: true
+---
+
+<!-- Computations for paper/scrs_2026_proj_supplement.tex.
+     Writes figures to paper/figs/.
+
+     Toolchain (2026 update):
+     - SS3 MVLN via ss3diags2::ss3stk / ss3mvln (joint delta-method draws)
+     - Surplus-production contrast via ss3diags2::ss2jabba3 → JABBA3
+       (constant process error, and state-dependent sdb via jb3_tier2)
+     - SS3 MCMC still from ss -mceval derived_posteriors
+
+     Narrative anchors:
+     - Patterson (2001) / Magnusson (2013): status-era → projection-era
+     - Shark WG 2026: MVLN vs MCMC; multi-model weighting; non-MSY for sharks
+     - Winker et al. SCRS/2019/098: cryptic SSB, SPM lag
+     - Closed-form MVLN; FLasher PE (MCMC + block residuals)
+     - Diagnostics (SCRS/2026/142) + ensembles; RebuildAge targets -->
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, cache.path = "cache/",
+                      autodep = TRUE, warning = FALSE, message = FALSE,
+                      fig.path = "../paper/figs/", fig.width = 10,
+                      fig.height = 5, dpi = 300)
+```
+
+
+
+```{r library, cache=FALSE}
+# The installed FLRebuild is behind the source that defines kobeMomentGrid,
+# kobeDraws and kobeEmpirical. Load that source when it is on this machine.
+flrSrc <- "C:/work/flr/01_lauriekell/FLRebuild"
+if (dir.exists(flrSrc)) {
+  pkgload::load_all(flrSrc, export_all = TRUE, quiet = TRUE)
+} else {
+  library(FLRebuild)
+}
+library(kobe)
+library(plyr)
+library(ggplot2)
+library(JABBA3)
+library(ss3diags2)
+
+# FLRebuild::theme_kobe defaults to 10pt. Figures are drawn wider than the
+# text width they are printed at, so 10pt on the device is about 6pt on the
+# page. 16pt prints nearer 10pt.
+theme_kobe <- function(base_size = 16, ...)
+  FLRebuild:::theme_kobe(base_size = base_size, ...)
+```
+
+# Inputs
+
+Paper figures use SS3 recDev1 (MVLN via `ss3diags2`), SS3 recDev2 MCMC, and
+JABBA3 (SS3 catch/CPUE through `ss2jabba3`), with constant and
+state-dependent process error, for historical and current status;
+projections under constant catch also include `SS3 FLasher PE` (recDev2 MCMC
+terminal SSB and per-draw `SSB_MSY`/`annF_MSY`, with circular-block historical
+recruitment residuals in `FLasher::fwd`). SS3 recDev2 MVLN is supplementary.
+`SS3 FLasher det` is an MLE check (residual = 1, one iter), not a paper scenario.
+
+```{r paths, cache=FALSE}
+ssRoot="../data/ss3"
+ssDirs=c("SS3 recDev1" = file.path(ssRoot, "HW2e_HW2d_InitFprior_0t_recDev1"),
+         "SS3 recDev2" = file.path(ssRoot, "HW2e_HW2d_InitFprior_0t_recDev2"))
+
+jabba3Cache="../data/runs/jabba3-sma.rds"
+
+ssFcst=lapply(ssDirs, function(d) {
+  f=list.dirs(file.path(d, "forecasts", "sd"), recursive = FALSE)
+  f=f[grepl("^[0-9]+$", basename(f)) &
+      file.exists(file.path(f, "Report.sso")) & file.exists(file.path(f, "ss3.cor"))]
+  f=setNames(f, basename(f))
+  f[as.numeric(names(f)) <= 2300]
+})
+ssFcst=Filter(function(f) all(c(0, 250, 1200, 1883, 2300) %in% as.numeric(names(f))) &&
+                          length(f) >= 26, ssFcst)
+
+mcDir    ="../data/mcmc/mceval"
+mcPattern="MCMC_([0-9]+)[^/]*/derived_posteriors\\.sso$"
+mcFiles  =list.files(mcDir, pattern = "derived_posteriors\\.sso$", recursive = TRUE, full.names = TRUE)
+mcFiles  =mcFiles[grepl(mcPattern, mcFiles)]
+
+baseOk  =file.exists(file.path(ssDirs, "Report.sso")) & file.exists(file.path(ssDirs, "ss3.cor"))
+names(baseOk)=names(ssDirs)
+hasBase =any(baseOk)
+hasSS   =length(ssFcst) > 0
+hasMcmc =length(mcFiles) >= 26
+```
+
+```{r settings, cache=FALSE}
+annYrs =2025:2070
+histYrs=1950:2024
+k2Yrs  =c(2027, 2030, 2035, 2040, 2045, 2050, 2060, 2070)
+tacs   =sort(unique(c(seq(0, 2300, by = 100), 250, 1883)))
+tacsFig=c(0, 250, 1200, 1883, 2300)
+evalYrs=c(2030, 2045, 2070)
+targets=c(0.6, 0.7)
+nDraw  =1000
+nWorm  =5
+# Informed r prior for SMA when ss3_spm r/K are off (SSB in numbers)
+jabba3Rprior=c(0.08, 0.4, 1)
+
+## Paper figs: JABBA3 (constant sdb) and JABBA3 dyn (state-dependent sdb).
+jb3Scen=c("JABBA3", "JABBA3 dyn")
+histScen=c("SS3 recDev1", "SS3 recDev2 MCMC", jb3Scen)
+projScen=c("SS3 recDev1", "SS3 recDev2 MCMC", "SS3 FLasher PE", jb3Scen)
+suppScen=c("SS3 recDev1", "SS3 recDev2", "SS3 recDev2 MCMC", "SS3 FLasher PE", jb3Scen)
+scenarios=suppScen
+histCol =c("SS3 recDev1" = "#1b9e77", "SS3 recDev2 MCMC" = "#e7298a",
+           "JABBA3" = "#d95f02", "JABBA3 dyn" = "#8c2d04")
+scenCol =c("SS3 recDev1" = "#1b9e77", "SS3 recDev2" = "#7570b3",
+           "SS3 recDev2 MCMC" = "#e7298a", "SS3 FLasher PE" = "#000000",
+           "JABBA3" = "#d95f02", "JABBA3 dyn" = "#8c2d04")
+paperCol=scenCol[projScen]
+colScales=list(scale_colour_manual(values = paperCol, name = NULL),
+               scale_fill_manual(values = paperCol, name = NULL))
+histScales=list(scale_colour_manual(values = histCol[histScen], name = NULL),
+                scale_fill_manual(values = histCol[histScen], name = NULL))
+suppScales=list(scale_colour_manual(values = scenCol, name = NULL),
+                scale_fill_manual(values = scenCol, name = NULL))
+quadCol=c(red = "#d73027", orange = "#fc8d59", yellow = "#fee08b", green = "#1a9850")
+kobeQuad=unname(quadCol[c("red", "green", "yellow", "orange")])
+```
+
+## SS3
+
+```{r ss3-base, eval=hasBase, cache.extra=tools::md5sum(file.path(ssDirs, "ss3.cor"))}
+ssBase=lapply(ssDirs[baseOk], r4ss::SS_output, verbose = FALSE,
+              printstats = FALSE, covar = TRUE)
+# Legacy moment grids (FLRebuild) kept for forecast MVLN TAC folders
+ssHist=lapply(ssBase, function(x) kobeMomentGrid(list("0" = x), histYrs, bOffset = 1))
+# Historical MVLN: joint draws from ss3diags2 (recDev1 paper scenario)
+ss3stkHist=if ("SS3 recDev1" %in% names(ssBase)) {
+  list("SS3 recDev1" = ss3stk(ssBase[["SS3 recDev1"]], output = "iters", iters = nDraw))
+} else list()
+```
+
+```{r ss3, eval=hasSS, cache.extra=lapply(ssFcst, function(f) tools::md5sum(file.path(f, "ss3.cor")))}
+ssGrid=lapply(ssFcst, function(f)
+  kobeMomentGrid(lapply(f, r4ss::SS_output, verbose = FALSE, printstats = FALSE, covar = TRUE),
+                 years = annYrs, transform = "exact", bOffset = 1))
+invisible(gc())
+```
+
+## SS3 MCMC
+
+One `ss -mceval` per catch level over the same recDev2 posterior. SSB is at
+the end of the year (`ssbLag = 1`), as for the MVLN.
+
+```{r ss3-mcmc, eval=hasMcmc, cache.extra=tools::md5sum(mcFiles)}
+mcKb=getMcmcRuns(mcDir, pattern = mcPattern, ssbLag = 1)
+mcKb=mcKb[mcKb$catch %in% tacs, ]
+```
+
+## JABBA / JABBA3
+
+JABBA3 is fitted to SS3 catch and CPUE via `ss3diags2::ss2jabba3`. SMA SSB is
+spawning output in numbers, so `ss3_spm()` switches off r/K priors; we keep the
+SPM shape \(m\) and an informed shark \(r\) prior. Two process-error forms share
+that fit: **JABBA3** is constant \(\sigma\) (`sdb.form = "const"`), and
+**JABBA3 dyn** is state-dependent, \(\sigma_t = \sigma_{MSY}(B_t/B_{MSY})^{-k}\),
+from `jb3_tier2()` with no maturity lag. The dynamic level is scaled so the
+average process variance matches the constant fit; \(k\) follows the
+life-history prior.
+
+```{r jabba3-helpers, cache=FALSE}
+# Convert jb3_project() iters to the common draws table
+jb3ProjDraws=function(pj, scenario = "JABBA3") {
+  do.call(rbind, lapply(seq_along(pj$iters), function(i) {
+    it=pj$iters[[i]]
+    catch=pj$scenarios$value[i]
+    yrs=it$years
+    B=it[["B/Bmsy"]]; H=it[["F/Fmsy"]]
+    if (nrow(B) == length(yrs) && ncol(B) != length(yrs)) { B=t(B); H=t(H) }
+    nd=nrow(B)
+    data.frame(scenario = scenario, iter = rep(seq_len(nd), times = length(yrs)),
+               catch = catch, year = rep(yrs, each = nd),
+               stock = as.vector(B), harvest = as.vector(H),
+               stringsAsFactors = FALSE)
+  }))
+}
+jb3HistDraws=function(fit, scenario = "JABBA3") {
+  q=jb3_flqs(fit, draws = TRUE)
+  st=as.data.frame(q$stock); hv=as.data.frame(q$harvest)
+  data.frame(scenario = scenario, iter = as.integer(st$iter),
+             year = as.integer(as.character(st$year)),
+             stock = st$data, harvest = hv$data, stringsAsFactors = FALSE)
+}
+```
+
+```{r jabba, cache=FALSE}
+jbFits=list(); jbPrj=list(); jb3Fit=NULL; jb3Prj=NULL
+jb3FitDyn=NULL; jb3PrjDyn=NULL; jb3Draws=NULL; jb3Hist=NULL
+  # Rebuild if the cache is missing, the TAC grid is short, or the
+  # state-dependent fit is absent (older caches stored only constant sdb).
+  jb3NeedConst=TRUE; jb3NeedDyn=TRUE; sp=NULL
+  if (file.exists(jabba3Cache)) {
+    jb3Cache=readRDS(jabba3Cache)
+    jb3Fit=jb3Cache$fit; jb3Prj=jb3Cache$proj; sp=jb3Cache$spm
+    have=sort(unique(jb3Prj$scenarios$value))
+    jb3NeedConst=is.null(jb3Fit) || !all(tacs %in% have)
+    if (!is.null(jb3Cache$fit.dyn) && !is.null(jb3Cache$proj.dyn)) {
+      jb3FitDyn=jb3Cache$fit.dyn; jb3PrjDyn=jb3Cache$proj.dyn
+      haveD=sort(unique(jb3PrjDyn$scenarios$value))
+      jb3NeedDyn=!all(tacs %in% haveD)
+    }
+  }
+  if (jb3NeedConst || jb3NeedDyn) {
+    if (jb3NeedConst) {
+      inp=ss2jabba3(ssBase[["SS3 recDev1"]])
+      sp=ss3_spm(ssBase[["SS3 recDev1"]])
+      d=jb3_data(inp$catch.total, inp$indices, stock = "sma")
+      pr=jb3_priors(d, r = jabba3Rprior,
+                    m = c(as.numeric(sp$pars["m"]), 0.15, 1))
+      jb3Fit=jabba3(d, pr, jb3_model(shape = "pella", sdb.form = "const"),
+                    ndraws = nDraw, osa = FALSE, run = "JABBA3")
+      jb3Prj=jb3_project(jb3Fit, catch = tacs, nyears = max(annYrs) - max(jb3Fit$years),
+                         ndraws = nDraw, imp.years = 2)
+    }
+    if (jb3NeedDyn) {
+      # amat omitted: no production lag, so this differs only in sdb.form
+      jb3FitDyn=jb3_tier2(jb3Fit, ndraws = nDraw, osa = FALSE)
+      jb3FitDyn$run="JABBA3 dyn"
+      jb3PrjDyn=jb3_project(jb3FitDyn, catch = tacs,
+                            nyears = max(annYrs) - max(jb3FitDyn$years),
+                            ndraws = nDraw, imp.years = 2)
+    }
+    saveRDS(list(fit = jb3Fit, proj = jb3Prj, fit.dyn = jb3FitDyn, proj.dyn = jb3PrjDyn,
+                 spm = sp), jabba3Cache)
+  }
+  jbFits=list(JABBA3 = jb3Fit, "JABBA3 dyn" = jb3FitDyn)
+  jbPrj =list(JABBA3 = jb3Prj, "JABBA3 dyn" = jb3PrjDyn)
+  jb3Draws=do.call(rbind, lapply(names(jbPrj), function(s) jb3ProjDraws(jbPrj[[s]], s)))
+  jb3Hist=do.call(rbind, lapply(names(jbFits), function(s) jb3HistDraws(jbFits[[s]], s)))
+  cat(sprintf("jb3 draws %d hist %d years %s\n",
+              if (is.null(jb3Draws)) 0 else nrow(jb3Draws),
+              if (is.null(jb3Hist)) 0 else nrow(jb3Hist),
+              if (is.null(jb3Hist) || !nrow(jb3Hist)) "none" else
+                paste(range(jb3Hist$year), collapse = "-")),
+      file = "../data/runs/knit-flags.txt", append = FALSE)
+```
+
+## Probabilities and draws
+
+SS3 forecast draws are sampled from the MVLN moments with `kobeDraws` (per-TAC
+`ss -sdonly` folders). JABBA3 draws come from `jb3_project()`. Kobe
+probabilities use `kobe::smry`, trajectory quantiles `kobe::trks`.
+
+```{r assemble, cache.extra=unname(tools::md5sum(jabba3Cache))}
+ssProjFile="../data/runs/ss-project.rds"
+hasSsProj=file.exists(ssProjFile)
+flPe=if (hasSsProj) {
+  sp0=readRDS(ssProjFile)
+  d=sp0$kb[sp0$kb$scenario == "SS3 FLasher PE" & sp0$kb$year %in% annYrs,
+           c("iter", "catch", "year", "stock", "harvest")]
+  data.frame(scenario = "SS3 FLasher PE", d)
+} else NULL
+jbProjDraws=jb3Draws[jb3Draws$year %in% annYrs, ]
+draws=rbind(
+  do.call(rbind, lapply(names(get0("ssGrid", ifnotfound = list())), function(s) {
+    d=kobeDraws(ssGrid[[s]], n = nDraw, seed = 2026)
+    data.frame(scenario = s, iter = NA_integer_, catch = as.numeric(d$run),
+               d[, c("year", "stock", "harvest")])
+  })),
+  if (exists("mcKb")) data.frame(scenario = "SS3 recDev2 MCMC",
+    mcKb[mcKb$year %in% annYrs, c("iter", "catch", "year", "stock", "harvest")]),
+  flPe,
+  jbProjDraws)
+draws$scenario=factor(draws$scenario, scenarios)
+
+prob=ddply(draws, .(scenario, catch, year), with, smry(stock, harvest))
+prob$scenario=factor(prob$scenario, scenarios)
+avail=levels(droplevels(prob$scenario))
+
+band=function(d, by) ddply(d, by, function(x) {
+  t=trks(x$stock, x$harvest, prob = c(0.025, 0.5, 0.975))
+  data.frame(quant = c("B/BMSY", "F/FMSY"), lo = c(t$stock[1], t$harvest[1]),
+             mid = c(t$stock[2], t$harvest[2]), hi = c(t$stock[3], t$harvest[3]))
+})
+```
+
+Historical draws: SS3 from `ss3diags2` joint MVLN; JABBA3 from fit draws.
+Biomass is at the end of the year.
+
+```{r hist, cache.extra=unname(tools::md5sum(jabba3Cache))}
+ssHistDraws=if (length(get0("ss3stkHist", ifnotfound = list())) > 0) {
+  do.call(rbind, lapply(names(ss3stkHist), function(s) {
+    q=ss3_flqs(ss3stkHist[[s]], c("B/Btgt", "F/Ftgt"))
+    st=as.data.frame(q[["B/Btgt"]]); hv=as.data.frame(q[["F/Ftgt"]])
+    data.frame(scenario = s, iter = as.integer(st$iter),
+               year = as.integer(as.character(st$year)),
+               stock = st$data, harvest = hv$data, stringsAsFactors = FALSE)
+  }))
+} else {
+  do.call(rbind, lapply(names(get0("ssHist", ifnotfound = list())), function(s) {
+    d=kobeDraws(ssHist[[s]], n = nDraw, seed = 2024)
+    data.frame(scenario = s, iter = NA_integer_, d[, c("year", "stock", "harvest")])
+  }))
+}
+jbHistDraws=jb3Hist[jb3Hist$year %in% histYrs, ]
+histDraws=rbind(
+  ssHistDraws,
+  if (exists("mcKb")) data.frame(scenario = "SS3 recDev2 MCMC",
+    mcKb[mcKb$catch == min(mcKb$catch) & mcKb$year %in% histYrs,
+         c("iter", "year", "stock", "harvest")]),
+  jbHistDraws)
+histDraws$scenario=factor(histDraws$scenario, scenarios)
+hist=band(histDraws, .(scenario, year))
+```
+
+# Reference points
+
+SS3 values are the maximum likelihood estimates (SS3 recDev1 and recDev2) or
+posterior medians (SS3 recDev2 MCMC); JABBA3 values are RTMB mode / MVN
+summaries (or NUTS medians if used). For SS3, FMSY is the annual apical F, and
+BMSY and B0 are SSB in SS3 units (B0 as total biomass in tonnes is also given
+for the MLE runs; `-mceval` does not report it). SS3 has no intrinsic rate of
+increase, so \(r\) is the Pella-Tomlinson equivalent, \(r = m F_{MSY}\), with
+the shape \(m\) solved from \(B_{MSY}/B_0 = m^{-1/(m-1)}\); for JABBA3, \(r\)
+and \(m\) are estimated (shape informed by `ss3_spm`). Population doubling
+time is \(\ln 2 / r\).
+
+```{r refpts, cache=FALSE}
+rpSs=if (length(get0("ssBase", ifnotfound = list())) > 0)
+  refptsSummary(ssBase) else NULL
+rpMc=if (exists("mcKb")) data.frame(scenario = "SS3 recDev2 MCMC",
+                                    refptsSummary(mcFiles[1])) else NULL
+rpJb=if (length(get0("jbFits", ifnotfound = list())) > 0) {
+  do.call(rbind, lapply(names(jbFits), function(s) {
+    f=jbFits[[s]]; p=f$pars; rp=f$refpts
+    data.frame(scenario = s,
+               msy = rp["MSY", "est"], fmsy = rp["Fmsy", "est"],
+               bmsy = rp["Bmsy", "est"], b0 = rp["K", "est"], tb0 = rp["K", "est"],
+               shape = rp["BmsyK", "est"], m = p["m", "est"], r = p["r", "est"],
+               td = log(2) / p["r", "est"])
+  }))
+} else NULL
+rp=rbind(rpSs, rpMc, rpJb)
+rp$scenario=factor(rp$scenario, scenarios)
+rp=rp[order(rp$scenario), ]
+knitr::kable(transform(rp, msy = round(msy), fmsy = signif(fmsy, 3), bmsy = round(bmsy),
+                       b0 = round(b0), tb0 = round(tb0, -2), shape = round(shape, 3),
+                       m = round(m, 2), r = signif(r, 3), td = round(td, 1)),
+             row.names = FALSE, format.args = list(big.mark = ","),
+             col.names = c("Scenario", "MSY (t)", "FMSY", "BMSY", "B0", "B0 total (t)",
+                           "BMSY/B0", "Shape m", "r", "Doubling time (yr)"),
+             caption = "Reference points by scenario.")
+```
+
+# Current status
+
+Proportion of 2024 draws in each Kobe quadrant (`kobeEmpirical`): green
+(B ≥ BMSY, F < FMSY), orange (B ≥ BMSY, F ≥ FMSY), yellow (B < BMSY,
+F < FMSY) and red (B < BMSY, F ≥ FMSY).
+
+```{r status-bar, fig.height=4, fig.width=8, fig.cap="Kobe quadrant probabilities in 2024 by scenario."}
+hd=histDraws[histDraws$year == max(histYrs) &
+               as.character(histDraws$scenario) %in% histScen, ]
+kq=kobeEmpirical(transform(hd, run = as.character(scenario)))
+kq=do.call(rbind, lapply(c("red", "yellow", "orange", "green"), function(q)
+  data.frame(scenario = factor(kq$run, histScen), quadrant = q, p = kq[[q]])))
+kq$quadrant=factor(kq$quadrant, c("red", "yellow", "orange", "green"))
+kq=kq[!is.na(kq$scenario), ]
+ggplot(kq, aes(scenario, p, fill = quadrant)) +
+  geom_col(width = 0.7, colour = "grey30", linewidth = 0.2) +
+  geom_text(aes(label = ifelse(p >= 0.04, sprintf("%.0f%%", 100 * p), "")),
+            position = position_stack(vjust = 0.5), size = 4.5) +
+  scale_fill_manual(values = quadCol, name = NULL) +
+  scale_y_continuous(labels = scales::percent, expand = c(0, 0)) +
+  labs(x = NULL, y = "Probability") + theme_kobe()
+```
+
+# Historical trajectories
+
+Intervals are the 2.5% and 97.5% quantiles from `kobe::trks`.
+
+```{r hist-fig, fig.height=6, fig.width=10, fig.cap="Historical B/BMSY and F/FMSY with 95% intervals. The right-hand panel of each row is the marginal distribution in the last assessment year."}
+hFig=hist[as.character(hist$scenario) %in% histScen, ]
+hEnd=histDraws[histDraws$year == max(histYrs) &
+                 as.character(histDraws$scenario) %in% histScen, ]
+hEnd=rbind(
+  data.frame(scenario = hEnd$scenario, quant = "B/BMSY", value = hEnd$stock),
+  data.frame(scenario = hEnd$scenario, quant = "F/FMSY", value = hEnd$harvest))
+histRow=function(q, legend) {
+  d=hFig[hFig$quant == q, ]
+  m=hEnd[hEnd$quant == q & is.finite(hEnd$value), ]
+  ylim=c(0, max(d$hi, quantile(m$value, 0.975, na.rm = TRUE), na.rm = TRUE) * 1.02)
+  tr=ggplot(d, aes(year, mid, colour = scenario, fill = scenario)) +
+    geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.12, colour = NA) +
+    geom_line(linewidth = 0.6) +
+    geom_hline(yintercept = 1, linetype = "dashed", colour = "grey50") +
+    coord_cartesian(ylim = ylim, expand = FALSE) +
+    labs(x = NULL, y = q) + histScales +
+    guides(colour = "none",
+           fill = guide_legend(override.aes = list(alpha = 0.85))) +
+    theme_kobe() +
+    theme(legend.position = if (legend) "bottom" else "none")
+  mg=ggplot(m, aes(y = value, fill = scenario)) +
+    geom_density(aes(x = after_stat(scaled)), colour = "grey40", alpha = 0.45) +
+    geom_hline(yintercept = 1, linetype = "dashed", colour = "grey50") +
+    coord_cartesian(ylim = ylim, xlim = c(0, 1.15), expand = FALSE) +
+    labs(x = max(histYrs), y = NULL) + histScales +
+    guides(fill = "none", colour = "none") +
+    theme_kobe() +
+    theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(),
+          axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+          panel.grid = element_blank(), legend.position = "none")
+  patchwork::wrap_plots(tr, mg, widths = c(5, 1))
+}
+patchwork::wrap_plots(histRow("B/BMSY", FALSE), histRow("F/FMSY", TRUE), ncol = 1)
+```
+
+
+# Trends with terminal-year distribution
+
+Median, 50% and 90% intervals of the historical draws, with a sample of
+individual trajectories and the 2024 distribution in the margin, in the
+layout of `kobe::trendPhaseMar2`. Trajectories are MCMC iterations, so they
+are shown for the SS3 MCMC and JABBA scenarios only; the MVLN draws are
+independent by year and are not trajectories.
+
+Catch/MSY uses each scenario's own catch series and MSY uncertainty: SS3
+MVLN from the delta-method estimate of `Dead_Catch_MSY` (log-normal), the SS3
+MCMC from its posterior, and JABBA from the MSY posterior. Each trajectory
+holds that iteration's MSY fixed over time.
+
+```{r traj-fn, cache=FALSE}
+wormIds=function(ids, n = nWorm) {
+  ids=unique(ids[is.finite(ids)])
+  if (!length(ids)) return(ids)
+  if (length(ids) <= n) sort(ids) else sort(sample(ids, n))
+}
+```
+
+```{r trend}
+set.seed(2024)
+ssCatch=lapply(get0("ssBase", ifnotfound = list()), function(x) {
+  c1=aggregate(Obs ~ Yr, x$catch, sum)
+  data.frame(year = c1$Yr, catch = c1$Obs)
+})
+msyDraw=lapply(get0("ssBase", ifnotfound = list()), function(x) {
+  v=x$derived_quants["Dead_Catch_MSY", "Value"]
+  cv=x$derived_quants["Dead_Catch_MSY", "StdDev"] / v
+  exp(rnorm(nDraw, log(v), sqrt(log(1 + cv^2))))
+})
+if (exists("mcKb")) {
+  ssCatch[["SS3 recDev2 MCMC"]]=ssCatch[["SS3 recDev2"]]
+  msyDraw[["SS3 recDev2 MCMC"]]=as.numeric(FLRebuild:::mcmcTable(mcFiles[1])$Dead_Catch_MSY)
+}
+for (s in names(get0("jbFits", ifnotfound = list()))) {
+  fit=jbFits[[s]]
+  if (!is.null(fit$inputseries$catch)) {
+    c1=fit$inputseries$catch
+    ssCatch[[s]]=data.frame(year = c1[, 1], catch = c1[, 2])
+    msyDraw[[s]]=as.numeric(fit$refpts_posterior$MSY)
+  } else {
+    ssCatch[[s]]=data.frame(year = as.numeric(fit$years), catch = as.numeric(fit$data$catch))
+    msyDraw[[s]]=as.numeric(fit$draws$pars$MSY)
+  }
+}
+histC=ddply(histDraws, .(scenario, year), function(x) {
+  s=as.character(x$scenario[1])
+  cbind(x, catch = ssCatch[[s]]$catch[match(x$year[1], ssCatch[[s]]$year)] /
+                   sample(msyDraw[[s]], nrow(x), replace = TRUE))
+})
+
+tq=ddply(histC, .(scenario, year), function(x) {
+  p=c(0.05, 0.25, 0.5, 0.75, 0.95)
+  qtile=function(v) {
+    v=v[is.finite(v)]
+    if (!length(v)) return(rep(NA_real_, length(p)))
+    as.numeric(stats::quantile(v, p, names = FALSE))
+  }
+  q=rbind(qtile(x$stock), qtile(x$harvest), qtile(x$catch))
+  data.frame(quant = c("stock", "harvest", "catch"),
+             q05 = q[, 1], q25 = q[, 2], q50 = q[, 3], q75 = q[, 4], q95 = q[, 5],
+             stringsAsFactors = FALSE)
+})
+term=histC[histC$year == max(histYrs), ]
+
+# One sample of iterations per posterior scenario, reused for B, F and catch.
+postScen=setdiff(scenarios, names(get0("ssBase", ifnotfound = list())))
+keep=setNames(lapply(postScen, function(s) {
+  d=histDraws[histDraws$scenario == s, ]
+  wormIds(d$iter)
+}), postScen)
+postW=do.call(rbind, lapply(names(keep), function(s) {
+  d=histDraws[histDraws$scenario == s & histDraws$iter %in% keep[[s]], ]
+  if (!nrow(d)) return(NULL)
+  rbind(data.frame(scenario = s, iter = d$iter, year = d$year, quant = "stock", value = d$stock),
+        data.frame(scenario = s, iter = d$iter, year = d$year, quant = "harvest", value = d$harvest))
+}))
+msyAt=function(s, ids) {
+  if (s == "SS3 recDev2 MCMC") {
+    tab=FLRebuild:::mcmcTable(mcFiles[1])
+    msy=setNames(as.numeric(tab$Dead_Catch_MSY), tab$Iter)
+    return(msy[as.character(ids)])
+  }
+  fit=jbFits[[s]]
+  if (!is.null(fit$refpts_posterior$MSY)) {
+    msy=as.numeric(fit$refpts_posterior$MSY)
+    all=sort(unique(jbHist[[s]]$iter))
+  } else {
+    msy=as.numeric(fit$draws$pars$MSY)
+    all=seq_along(msy)
+  }
+  if (length(msy) != length(all)) return(rep(NA_real_, length(ids)))
+  setNames(msy, all)[as.character(ids)]
+}
+catchW=do.call(rbind, lapply(intersect(names(keep), names(ssCatch)), function(s) {
+  ct=ssCatch[[s]]
+  ct=ct[ct$year %in% histYrs & is.finite(ct$catch), ]
+  ids=keep[[s]]
+  if (!length(ids) || !nrow(ct)) return(NULL)
+  msy=msyAt(s, ids)
+  do.call(rbind, lapply(seq_along(ids), function(i) {
+    mi=unname(msy[i])
+    if (!length(ct$year) || !length(mi) || !is.finite(mi)) return(NULL)
+    data.frame(scenario = s, iter = ids[i], year = ct$year, quant = "catch",
+               value = ct$catch / mi, stringsAsFactors = FALSE)
+  }))
+}))
+worms=rbind(postW, catchW)
+if (is.null(worms) || !nrow(worms))
+  worms=data.frame(scenario = factor(character(), scenarios), iter = integer(),
+                   year = integer(), quant = character(), value = numeric())
+worms=worms[is.finite(worms$value) & (worms$quant == "harvest" | worms$value > 0), ]
+worms$scenario=factor(worms$scenario, scenarios)
+trendMar=function(q, ...)
+  plotTrendMar(tq[tq$quant == q, ], term, q, ..., col = scenCol,
+               worms = worms[worms$quant == q, ]) &
+  theme(text = element_text(size = 16))
+```
+
+```{r trend-b, fig.height=9.5, fig.width=9, fig.cap="B/BMSY: individual trajectories, median, 50% and 90% intervals, with the 2024 distribution in the margin."}
+trendMar("stock", expression(B / B[MSY]), quadCol[["red"]], quadCol[["green"]])
+```
+
+```{r trend-f, fig.height=9.5, fig.width=9, fig.cap="F/FMSY: individual trajectories, median, 50% and 90% intervals, with the 2024 distribution in the margin."}
+trendMar("harvest", expression(F / F[MSY]), quadCol[["green"]], quadCol[["red"]])
+```
+
+```{r trend-c, fig.height=9.5, fig.width=9, fig.cap="Catch/MSY: individual trajectories, median, 50% and 90% intervals from MSY uncertainty, with the 2024 distribution in the margin."}
+trendMar("catch", "Catch / MSY", quadCol[["green"]], quadCol[["red"]])
+```
+
+# Kobe phase plots
+
+The joint distribution is taken in the last year shared by every scenario that
+has draws. Runs with no historical draws are left out, so an empty series
+cannot set that year.
+
+```{r phase}
+set.seed(2024)
+phaseHave=histDraws[is.finite(histDraws$stock) & is.finite(histDraws$harvest), ]
+phaseHave$scenario=droplevels(phaseHave$scenario)
+phaseYear=max(Reduce(intersect, split(phaseHave$year, phaseHave$scenario)))
+phaseRaw=phaseHave[phaseHave$year == phaseYear, ]
+nPhase=min(500L, as.integer(min(table(phaseRaw$scenario))))
+cur=ddply(phaseRaw, .(scenario), function(x)
+  x[sample.int(nrow(x), nPhase), ])
+path=reshape(hist[, c("scenario", "year", "quant", "mid")], idvar = c("scenario", "year"),
+             timevar = "quant", direction = "wide")
+names(path)=c("scenario", "year", "stock", "harvest")
+```
+
+```{r phase-mar, fig.height=7, fig.width=7, fig.cap=sprintf("Joint distributions in %d, the last year common to all scenarios, with marginal densities.", phaseYear)}
+opTheme <- theme_get()
+theme_set(theme_bw(base_size = 16))
+on.exit(theme_set(opTheme), add = TRUE)
+pts=transform(cur, run = scenario)[, c("stock", "harvest", "run")]
+invisible(kobe:::kobePhaseMar2(pts, xlim = 3, col = unname(scenCol[levels(droplevels(pts$run))]),
+                               quadcol = kobeQuad,
+                               xlab = expression(B / B[MSY]), ylab = expression(F / F[MSY])))
+```
+
+```{r phase-all, fig.width=8, fig.height=8, fig.cap=sprintf("Kobe phase plots: median trajectory and the joint distribution in %d, the last year common to all scenarios.", phaseYear)}
+kobePhase(cur, xlim = c(0, 3), ylim = c(0, 3), quadcol = kobeQuad) +
+  geom_point(aes(stock, harvest), size = 0.4, alpha = 0.3, colour = "grey15") +
+  geom_path(aes(stock, harvest), data = path, colour = "white", linewidth = 0.6) +
+  geom_point(aes(stock, harvest), data = path[path$year == phaseYear, ],
+             shape = 21, fill = "white", size = 2.5) +
+  facet_wrap(~scenario, nrow = 2) +
+  coord_fixed(ratio = 1, xlim = c(0, 3), ylim = c(0, 3), expand = FALSE) +
+  theme_kobe()
+```
+
+```{r phase-table}
+st=ddply(histDraws[histDraws$year == max(histYrs), ], .(scenario), with,
+         smry(stock, harvest))
+knitr::kable(st[, c("scenario", "stock", "harvest", "green", "yellow", "red")],
+             digits = 2, row.names = FALSE,
+             col.names = c("Scenario", "Median B/BMSY", "Median F/FMSY",
+                           "Green", "Yellow", "Red"),
+             caption = "Kobe status in 2024. Yellow is either B < BMSY or F > FMSY, but not both.")
+```
+
+# Production functions
+
+Equilibrium surplus production and the historical catch trajectory, both
+relative to MSY and BMSY so the scenarios share a scale. For SS3, the curve is
+yield against SSB from `curveSS`. For JABBA, it is the fitted Pella-Tomlinson
+surplus production against total biomass.
+
+```{r pf, cache=FALSE}
+# surplusError knows SS3 and classic JABBA. JABBA3 uses the same Pella-Tomlinson
+# production, SP = r/(m-1) * B * (1 - (B/K)^(m-1)), with B and catch in tonnes.
+jb3Surplus=function(fit, scenario) {
+  r=fit$pars["r", "est"]; m=fit$pars["m", "est"]; K=fit$refpts["K", "est"]
+  bmsy=fit$refpts["Bmsy", "est"]; msy=fit$refpts["MSY", "est"]
+  b=fit$ts$est[fit$ts$quantity == "B"]
+  d=data.frame(year = fit$years, biomass = b, stock = b,
+               catch = as.numeric(fit$data$catch),
+               pf = (r / (m - 1)) * b * (1 - (b / K)^(m - 1)),
+               bmsy = bmsy, msy = msy)
+  d$sp=c(d$biomass[-1], NA) - d$biomass + d$catch
+  d$x=d$stock / d$bmsy
+  d$pe=(d$sp - d$pf) / d$msy
+  data.frame(scenario = scenario, d)
+}
+jb3Curve=function(fit, scenario) {
+  r=fit$pars["r", "est"]; m=fit$pars["m", "est"]; K=fit$refpts["K", "est"]
+  P=seq(0.02, 1, length.out = 200); b=P * K
+  data.frame(scenario = scenario, b = b,
+             c = (r / (m - 1)) * b * (1 - P^(m - 1)),
+             bmsy = fit$refpts["Bmsy", "est"], msy = fit$refpts["MSY", "est"])
+}
+spe=surplusError(get0("ssBase", ifnotfound = list()))
+spe=rbind(spe, do.call(rbind, lapply(names(get0("jbFits", ifnotfound = list())), function(s)
+  jb3Surplus(jbFits[[s]], s))))
+spe=spe[spe$year %in% histYrs, ]
+spe$scenario=factor(spe$scenario, scenarios)
+
+modelOf=function(s) factor(ifelse(grepl("^SS3", s), "SS3", "JABBA"), c("SS3", "JABBA"))
+pfCurve=rbind(
+  do.call(rbind, lapply(names(get0("ssBase", ifnotfound = list())), function(s) with(curveSS(ssBase[[s]]), {
+    cv=curve[order(curve$ssb), ]
+    data.frame(scenario = s, b = cv$ssb, c = cv$yield, bmsy = refpts$bmsy, msy = refpts$msy)
+  }))),
+  do.call(rbind, lapply(names(get0("jbFits", ifnotfound = list())), function(s)
+    jb3Curve(jbFits[[s]], s))))
+pfCurve=transform(pfCurve, x = b / bmsy, y = c / msy, scenario = factor(scenario, scenarios),
+                  model = modelOf(scenario))
+
+pfPath=transform(spe[, c("scenario", "year", "bmsy", "msy")], b = spe$stock, c = spe$catch,
+                 x = spe$x, y = spe$catch / spe$msy, model = modelOf(spe$scenario))
+med=reshape(hist[, c("scenario", "year", "quant", "mid")], idvar = c("scenario", "year"),
+            timevar = "quant", direction = "wide")
+names(med)=c("scenario", "year", "stock", "harvest")
+pfPath=merge(pfPath, med, all.x = TRUE)
+pfPath$quadrant=factor(with(pfPath, ifelse(stock >= 1, ifelse(harvest < 1, "green", "orange"),
+                                           ifelse(harvest < 1, "yellow", "red"))),
+                       c("red", "orange", "yellow", "green"))
+pfPath=pfPath[order(pfPath$scenario, pfPath$year), ]
+```
+
+```{r pf-fig, cache=FALSE, fig.width=8, fig.height=8, fig.cap="Production functions with Kobe regions: catch/MSY against B/BMSY. The dashed line is catch at FMSY (F > FMSY above it). Red: B < BMSY and catch > MSY; green: B > BMSY and catch < MSY; orange: B > BMSY and F > FMSY; yellow otherwise. The open circle is the first year and the filled circle 2024."}
+xMax=max(pfCurve$x, pfPath$x, na.rm = TRUE) * 1.02
+yMax=max(1.5, pfPath$y * 1.05, na.rm = TRUE)
+lim=max(xMax, yMax)
+ggplot(pfPath, aes(x, y)) +
+  geom_polygon(aes(x, y, group = quadrant, fill = quadrant), data = kobePhasePolygons(), alpha = 0.6,
+               inherit.aes = FALSE) +
+  scale_fill_manual(values = c(quadCol, yellow2 = quadCol[["yellow"]]), guide = "none") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "grey30") +
+  geom_line(aes(x, y), data = pfCurve, colour = "blue", linewidth = 0.8) +
+  geom_path(colour = "grey15", linewidth = 0.4,
+            arrow = arrow(length = unit(0.12, "cm"), type = "closed")) +
+  geom_point(data = ddply(pfPath, .(scenario), function(d) d[which.min(d$year), ]),
+             shape = 21, fill = "white", size = 2) +
+  geom_point(data = ddply(pfPath, .(scenario), function(d) d[which.max(d$year), ]),
+             shape = 21, fill = "grey15", size = 2) +
+  facet_wrap(~scenario, nrow = 2) +
+  coord_fixed(ratio = 1, xlim = c(0, lim), ylim = c(0, lim), expand = FALSE) +
+  labs(x = expression(B / B[MSY]), y = expression(Catch / MSY)) + theme_kobe()
+```
+
+On absolute scales, catch is in tonnes. SS3 biomass is SSB in the units
+reported by SS3 (not tonnes), and JABBA biomass is total biomass in tonnes, so
+the two model families are shown on separate panels. Points are coloured by
+scenario and filled by the Kobe quadrant of the median B/BMSY and F/FMSY that
+year. The open diamond is BMSY, MSY.
+
+```{r pf-abs, cache=FALSE}
+pfAbs=list(
+  geom_line(aes(b, c, colour = scenario), data = pfCurve, linewidth = 0.8),
+  geom_path(aes(b, c, colour = scenario), linewidth = 0.3, alpha = 0.7),
+  geom_point(aes(b, c, colour = scenario, fill = quadrant), shape = 21, size = 1.8, stroke = 0.7),
+  geom_point(aes(bmsy, msy, colour = scenario), data = unique(pfCurve[, c("scenario", "model", "bmsy", "msy")]),
+             shape = 23, fill = "white", size = 3, stroke = 1),
+  colScales[[1]],
+  scale_fill_manual(values = quadCol, name = "Kobe", drop = FALSE),
+  guides(colour = guide_legend(override.aes = list(fill = "white")),
+         fill = guide_legend(override.aes = list(colour = "grey40"))),
+  labs(y = "Catch (t)"), theme_kobe(), theme(legend.position = "right"))
+```
+
+```{r pf-abs-model, cache=FALSE, fig.height=5, fig.width=11, fig.cap="Production functions on absolute scales, SS3 (SSB, SS3 units) and JABBA (total biomass, t) separately. Lines are the equilibrium curves; points are the historical catch, filled by Kobe quadrant."}
+ggplot(pfPath) + pfAbs +
+  facet_wrap(~model, scales = "free_x") +
+  scale_x_continuous(limits = c(0, NA), expand = expansion(c(0, 0.02))) +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(c(0, 0.02))) +
+  labs(x = "Biomass")
+```
+
+```{r pf-abs-all, cache=FALSE, fig.height=6, fig.width=9, fig.cap="Production functions for all scenarios on absolute scales in one panel. Biomass is on a log scale because SS3 SSB (SS3 units) and JABBA total biomass (t) differ by two orders of magnitude."}
+ggplot(pfPath) + pfAbs +
+  scale_x_log10(labels = scales::label_comma()) +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(c(0, 0.02))) +
+  labs(x = "Biomass (log scale)")
+```
+
+# Process error
+
+Process error is the realised surplus production minus that predicted by the
+production function, in tonnes and scaled by MSY:
+\(\{(B_{t+1} - B_t + C_t) - P(S_t)\} / MSY\). Positive values mean the stock
+produced more than the curve predicts. For SS3, \(B\) is total biomass
+(`Bio_all`), \(S\) is SSB and \(P\) is the equilibrium yield curve from
+`curveSS`. For JABBA, \(B = S\) is total biomass and \(P\) is the fitted
+Pella-Tomlinson curve. Catch above the curve in the production-function plot
+means catch exceeded the predicted surplus production, not that process error
+is positive. Computed with `FLRebuild::surplusError` (in the `pf` chunk);
+regimes are from STARS (`FLRebuild::rod`).
+
+```{r pe-fig, cache=FALSE, fig.height=10, fig.width=13, fig.cap="Process error (realised minus predicted surplus production, /MSY) by scenario: through time with rod() regimes, against B/BMSY (SSB/SSBMSY for SS3) with a loess smooth, autocorrelation with 95% bounds, and distribution."}
+plotSurplusError(spe, scenCol) & theme(text = element_text(size = 16))
+```
+
+## SS3 recruitment regimes
+
+```{r recdev}
+rdv=do.call(rbind, lapply(names(get0("ssBase", ifnotfound = list())), function(s) {
+  p=ssBase[[s]]$parameters
+  p=p[grepl("RecrDev_[0-9]{4}$", p$Label), ]
+  data.frame(scenario = s, year = as.numeric(sub(".*_", "", p$Label)), data = p$Value)
+}))
+rdv=rdv[rdv$year <= max(histYrs), ]
+rdv$scenario=factor(rdv$scenario, scenarios)
+rdr=ddply(rdv, .(scenario), function(x) rod(x$data, year = x$year))
+```
+
+```{r recdev-fig, fig.height=5, fig.width=9, fig.cap="Log recruitment residuals (points and line) with rod() regime means ± SD (shaded). These residuals, replayed with the assessment life history, are the observed productivity history used in the historical backtest."}
+ggplot(rdv, aes(year, data)) +
+  geom_polygon(aes(year, data, group = regime, fill = scenario), data = rdr,
+               colour = "grey40", linewidth = 0.25, alpha = 0.4) +
+  geom_hline(yintercept = 0, colour = "grey60") +
+  geom_line(linewidth = 0.45) + geom_point(size = 0.9) +
+  facet_grid(scenario ~ .) +
+  labs(x = NULL, y = "Log recruitment residual") + colScales[[2]] + theme_kobe() +
+  theme(legend.position = "none")
+```
+
+# Projections
+
+History from 2000 followed by the projection for each catch: a sample of
+individual trajectories, then the median and 50%, 80% and 95% intervals from
+`kobe::trks`. The dotted line is the last assessment year. SS3 recDev1 and
+SS3 recDev2 history are the joint MVLN. Those draws are independent by year,
+so the interval is drawn without a joined line. SS3 MCMC and JABBA3 lines are
+the same draw in the historical years and the projection. FLasher lines are
+the recDev2 MCMC draws that condition that projection, joined to the FLasher
+iteration.
+
+```{r proj}
+# History for the two projection rows that are not in histDraws.
+# recDev2: joint MVLN, same construction as recDev1. FLasher: the MCMC draws
+# in data/mcmc/derived_posteriors.sso that condition the projection, numbered
+# by the FLasher iteration so the line continues into the forecast.
+extraHist=local({
+  rows=list()
+  if ("SS3 recDev2" %in% names(get0("ssBase", ifnotfound = list()))) {
+    q=ss3_flqs(ss3stk(ssBase[["SS3 recDev2"]], output = "iters", iters = nDraw),
+               c("B/Btgt", "F/Ftgt"))
+    st=as.data.frame(q[["B/Btgt"]]); hv=as.data.frame(q[["F/Ftgt"]])
+    rows[[1]]=data.frame(scenario = "SS3 recDev2", iter = as.integer(st$iter),
+                         year = as.integer(as.character(st$year)),
+                         stock = st$data, harvest = hv$data, stringsAsFactors = FALSE)
+  }
+  peFile="../data/runs/ss-project.rds"
+  mcFile="../data/mcmc/derived_posteriors.sso"
+  if (file.exists(peFile) && file.exists(mcFile)) {
+    pe=readRDS(peFile)$kb
+    pe=unique(pe[pe$scenario == "SS3 FLasher PE" & is.finite(pe$mcmcIter),
+                 c("iter", "mcmcIter")])
+    if (nrow(pe)) {
+      h=readMcmcDq(mcFile, ssbLag = 1)
+      h=h[h$year %in% histYrs & h$iter %in% pe$mcmcIter,
+          c("iter", "year", "stock", "harvest")]
+      h$iter=pe$iter[match(h$iter, pe$mcmcIter)]
+      h=h[is.finite(h$iter), ]
+      if (nrow(h))
+        rows[[length(rows) + 1]]=data.frame(scenario = "SS3 FLasher PE", h,
+                                            stringsAsFactors = FALSE)
+    }
+  }
+  if (!length(rows)) return(NULL)
+  out=do.call(rbind, rows)
+  out$scenario=as.character(out$scenario)
+  out
+})
+keepH=c("scenario", "iter", "year", "stock", "harvest")
+baseH=histDraws
+baseH$scenario=as.character(baseH$scenario)
+projHist=if (is.null(extraHist) || !nrow(extraHist)) baseH else
+  rbind(baseH[, keepH], extraHist[, keepH])
+projHist$scenario=factor(projHist$scenario, scenarios)
+lv=c(0.5, 0.8, 0.95)
+pr=c((1 - rev(lv)) / 2, 0.5, 1 - (1 - lv) / 2)
+ciBand=function(d, by) ddply(d, by, function(x) {
+  t=trks(x$stock, x$harvest, prob = pr)
+  rbind(data.frame(quant = "B/BMSY", level = lv, mid = t$stock[4],
+                   lo = t$stock[3:1], hi = t$stock[5:7]),
+        data.frame(quant = "F/FMSY", level = lv, mid = t$harvest[4],
+                   lo = t$harvest[3:1], hi = t$harvest[5:7]))
+})
+ciH=ciBand(projHist[projHist$year >= 2000, ], .(scenario, year))
+ciH=merge(ciH, data.frame(catch = tacsFig), by = NULL)
+ciP=ciBand(draws[draws$catch %in% tacsFig, ], .(scenario, catch, year))
+ci=rbind(ciH, ciP[, names(ciH)])
+ci$scenario=factor(ci$scenario, scenarios)
+
+# JABBA3 historical and projection draws share iter numbers, so no thinning map.
+jabbaHistIter=function(s) NULL
+projPost=draws[is.finite(draws$iter) & draws$catch %in% tacsFig, ]
+projPost$scenario=droplevels(projPost$scenario)
+set.seed(2026)
+none=data.frame(scenario = factor(character(), scenarios), iter = integer(),
+                year = integer(), stock = numeric(), harvest = numeric(), catch = numeric())
+picked=if (!nrow(projPost)) NULL else
+  do.call(rbind, lapply(split(projPost, projPost$scenario), function(x) {
+    ids=Reduce(intersect, lapply(split(x$iter, x$catch), unique))
+    if (!length(ids)) ids=unique(x$iter)
+    data.frame(scenario = x$scenario[1], iter = wormIds(ids))
+  }))
+histLeg=function(s, ids, catch) {
+  h=projHist[as.character(projHist$scenario) == s & projHist$year >= 2000 &
+              is.finite(projHist$iter), ]
+  if (!nrow(h)) return(none)
+  if (grepl("^JABBA", s)) {
+    mp=jabbaHistIter(s)
+    if (is.null(mp)) h=h[h$iter %in% ids, ] else {
+      h=h[h$iter %in% mp[as.character(ids)], ]
+      h$iter=as.integer(names(mp)[match(h$iter, mp)])
+    }
+  } else h=h[h$iter %in% ids, ]
+  h=h[is.finite(h$iter), ]
+  if (!nrow(h)) return(none)
+  h$catch=catch
+  h[, c("scenario", "iter", "year", "stock", "harvest", "catch")]
+}
+asTraj=function(d)
+  rbind(data.frame(scenario = d$scenario, catch = d$catch, iter = d$iter, year = d$year,
+                   quant = "B/BMSY", value = d$stock),
+        data.frame(scenario = d$scenario, catch = d$catch, iter = d$iter, year = d$year,
+                   quant = "F/FMSY", value = d$harvest))
+if (!is.null(picked)) picked=droplevels(picked[is.finite(picked$iter), ])
+postTraj=if (is.null(picked) || !nrow(picked)) NULL else
+  do.call(rbind, lapply(split(picked, picked$scenario), function(pk) {
+  s=as.character(pk$scenario[1])
+  do.call(rbind, lapply(tacsFig, function(c0) {
+    pr=projPost[as.character(projPost$scenario) == s & projPost$catch == c0 &
+                  projPost$iter %in% pk$iter,
+                c("scenario", "iter", "year", "stock", "harvest", "catch")]
+    asTraj(rbind(histLeg(s, pk$iter, c0), pr))
+  }))
+}))
+projWorms=postTraj
+if (is.null(projWorms) || !nrow(projWorms))
+  projWorms=data.frame(scenario = factor(character(), scenarios), catch = numeric(),
+                       iter = integer(), year = integer(), quant = character(), value = numeric())
+projWorms=projWorms[is.finite(projWorms$value), ]
+projWorms$scenario=factor(projWorms$scenario, scenarios)
+
+ciPlot=function(q, cap) {
+  d=ci[ci$quant == q, ]
+  d$hi=pmin(d$hi, cap)
+  d$mid=pmin(d$mid, cap)
+  w=projWorms[projWorms$quant == q, ]
+  ggplot(d, aes(year)) +
+    geom_ribbon(aes(ymin = lo, ymax = hi, fill = scenario, alpha = factor(level))) +
+    geom_line(aes(year, value, group = iter), data = w, inherit.aes = FALSE,
+              colour = "grey15", alpha = 0.45, linewidth = 0.25) +
+    geom_line(aes(y = mid, colour = scenario), data = d[d$level == min(lv), ],
+              linewidth = 0.5) +
+    geom_hline(yintercept = 1, linetype = "dashed", colour = "grey40") +
+    geom_vline(xintercept = max(histYrs) + 0.5, linetype = "dotted", colour = "grey50") +
+    facet_grid(scenario ~ catch, labeller = labeller(catch = function(x) paste(x, "t"))) +
+    scale_alpha_manual(values = c("0.5" = 0.4, "0.8" = 0.25, "0.95" = 0.12),
+                       name = "Interval") +
+    colScales + guides(colour = "none", fill = "none") +
+    expand_limits(y = 0) + coord_cartesian(ylim = c(0, cap)) +
+    labs(x = NULL, y = q) + theme_kobe() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+}
+```
+
+```{r proj-b, fig.height=10.5, fig.cap="B/BMSY by scenario and catch: individual trajectories, median and 50/80/95% intervals."}
+ciPlot("B/BMSY", 3) + theme(text = element_text(size = 16))
+```
+
+```{r proj-f, fig.height=10.5, fig.cap="F/FMSY by scenario and catch: individual trajectories, median and 50/80/95% intervals."}
+ciPlot("F/FMSY", 5) + coord_cartesian(ylim = c(0, 4)) +
+  theme(text = element_text(size = 16))
+```
+
+# Kobe strategy matrices
+
+```{r k2sm, fig.height=12, fig.width=12, fig.cap="Kobe strategy matrices: P(green) (%) by catch and year."}
+k2=prob[prob$year %in% k2Yrs, ]
+k2$catch=factor(k2$catch, levels = rev(sort(unique(k2$catch))))
+ggplot(k2, aes(factor(year), catch, fill = green)) +
+  geom_tile(colour = "grey85", linewidth = 0.2) +
+  geom_text(aes(label = sprintf("%.0f", 100 * green)), size = 3.2) +
+  scale_fill_gradient2(low = quadCol["red"], mid = quadCol["yellow"],
+                       high = quadCol["green"], midpoint = 0.6, limits = c(0, 1),
+                       labels = scales::percent, name = "P(green)") +
+  guides(fill = guide_colourbar(barwidth = unit(12, "cm"),
+                                barheight = unit(0.4, "cm"),
+                                title.position = "top", title.hjust = 0.5)) +
+  facet_wrap(~scenario, nrow = 2) +
+  labs(x = NULL, y = "Catch (t)") + theme_kobe() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
+
+# Process-error projections (FLasher)
+
+SS3 MVLN does not carry recruitment deviations into the forecast. The FLR
+projection `FLRebuild::ssProject` does: the recDev2 MLE is read with
+`ss3om`, the female unit is projected with `FLasher::fwd`, and historical
+multiplicative residual series is circular-block resampled (not iid by year).
+Results are cached in `data/runs/ss-project.rds` (run
+`scripts/run-ss-project.R` to refresh).
+
+```{r ss-project, cache=FALSE, fig.height=6, fig.width=10, fig.cap="FLR projection of SS3 recDev2 MCMC: deterministic recruitment (dashed) versus circular-block resampled historical recruitment residuals (median and 90% interval). Catch panels in tonnes."}
+ssProjFile="../data/runs/ss-project.rds"
+hasSsProj=file.exists(ssProjFile)
+if (hasSsProj) {
+  sp=readRDS(ssProjFile)
+  tq=sp$sm[sp$sm$catch %in% c(0, 1200, 1883, 2300), ]
+  tq$scenario=factor(tq$scenario, c("SS3 FLasher det", "SS3 FLasher PE"))
+  pB=ggplot(tq[tq$scenario == "SS3 FLasher PE", ], aes(year)) +
+    geom_ribbon(aes(ymin = q05B, ymax = q95B), fill = scenCol[["SS3 recDev2 MCMC"]], alpha = 0.35) +
+    geom_line(aes(y = medB), colour = scenCol[["SS3 recDev2 MCMC"]], linewidth = 0.7) +
+    geom_line(aes(y = medB), data = tq[tq$scenario == "SS3 FLasher det", ],
+              colour = "grey20", linewidth = 0.6, linetype = "dashed") +
+    geom_hline(yintercept = 1, colour = "grey50", linetype = "dotted") +
+    facet_wrap(~catch, nrow = 1, labeller = labeller(catch = function(c) paste(c, "t"))) +
+    coord_cartesian(ylim = c(0, 3)) + labs(x = NULL, y = expression(B / B[MSY])) +
+    theme_kobe() + theme(legend.position = "none")
+  pF=ggplot(tq[tq$scenario == "SS3 FLasher PE", ], aes(year)) +
+    geom_ribbon(aes(ymin = q05F, ymax = q95F), fill = scenCol[["SS3 recDev2 MCMC"]], alpha = 0.35) +
+    geom_line(aes(y = medF), colour = scenCol[["SS3 recDev2 MCMC"]], linewidth = 0.7) +
+    geom_line(aes(y = medF), data = tq[tq$scenario == "SS3 FLasher det", ],
+              colour = "grey20", linewidth = 0.6, linetype = "dashed") +
+    geom_hline(yintercept = 1, colour = "grey50", linetype = "dotted") +
+    facet_wrap(~catch, nrow = 1, labeller = labeller(catch = function(c) paste(c, "t"))) +
+    coord_cartesian(ylim = c(0, 3)) + labs(x = NULL, y = expression(F / F[MSY])) +
+    theme_kobe() + theme(legend.position = "none")
+  patchwork::wrap_plots(pB, pF, ncol = 1)
+}
+```
+
+# Recovery
+
+```{r risk-fig, fig.height=6, fig.cap="P(green) against catch in 2030, 2045 and 2070. Dashed lines are the 60% and 70% targets."}
+riskProb=prob[prob$year %in% evalYrs, c("scenario", "catch", "year", "green")]
+riskProb$scenario=factor(as.character(riskProb$scenario), names(scenCol))
+ggplot(riskProb, aes(catch, green, colour = scenario)) +
+  geom_line(linewidth = 0.7) + geom_point(size = 0.8) +
+  geom_hline(yintercept = targets, linetype = "dashed", colour = "grey50") +
+  facet_wrap(~year, nrow = 1) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  scale_colour_manual(values = scenCol, name = NULL) +
+  labs(x = "Catch (t)", y = "P(green)") + theme_kobe()
+```
+
+```{r rebuild-fig, fig.height=7, fig.width=10, fig.cap="First year in which P(green) reaches and stays above the target."}
+rebuildOne=function(d, scenario)
+  do.call(rbind, lapply(targets, function(t)
+    do.call(rbind, lapply(split(d, d$catch), function(x)
+      data.frame(scenario = scenario, catch = x$catch[1],
+                 suppressWarnings(kobeRebuildTime(
+                   data.frame(year = x$year, green = x$green), target = t)))))))
+rb=do.call(rbind, lapply(avail, function(s)
+  rebuildOne(prob[prob$scenario == s, c("catch", "year", "green")], s)))
+rb$scenario=factor(rb$scenario, names(scenCol))
+ggplot(rb, aes(catch, rebuildYear, colour = scenario, linetype = factor(target))) +
+  geom_line(linewidth = 0.6) +
+  scale_y_continuous(limits = c(2023, 2073), breaks = seq(2030, 2070, by = 10),
+                     expand = expansion(0)) +
+  labs(x = "Catch (t)", y = "Recovery year", linetype = "Target") +
+  scale_colour_manual(values = scenCol, name = NULL) + theme_kobe()
+```
+
+```{r tac-table}
+tacTab=expand.grid(scenario = avail, year=evalYrs, target = targets,
+                   stringsAsFactors = FALSE)
+tacTab$TAC=mapply(function(s, y, t) kobeTargetCatchEmpirical(prob[prob$scenario == s, ], y, t),
+                  tacTab$scenario, tacTab$year, tacTab$target)
+tacW=reshape(transform(tacTab, key = paste0(year, " @ ", 100 * target, "%"))[,
+               c("scenario", "key", "TAC")],
+             idvar = "scenario", timevar = "key", direction = "wide")
+names(tacW)=c("Scenario", sub("^TAC\\.", "", names(tacW)[-1]))
+knitr::kable(tacW, digits = 0, row.names = FALSE,
+             caption = "Catch (t) at which P(green) equals the target in the given year.")
+```
+
+# Distribution shape
+
+```{r dens-fig, fig.height=4.5, fig.cap="Distribution of B/BMSY and F/FMSY in 2070 by catch (t), within the 5th to 95th percentiles of the draws in each panel. F/FMSY is not shown for zero catch."}
+dd=draws[draws$year == max(annYrs) & draws$catch %in% tacsFig, ]
+dl=rbind(data.frame(dd[, c("scenario", "catch")], quant = "B/BMSY", x = dd$stock),
+         data.frame(dd[, c("scenario", "catch")], quant = "F/FMSY", x = dd$harvest))
+dl=dl[is.finite(dl$x) & dl$x > 0 & !(dl$quant == "F/FMSY" & dl$catch == 0), ]
+dl=ddply(dl, .(quant, catch), function(x) {
+  q=quantile(x$x, c(0.05, 0.95))
+  x[x$x >= q[1] & x$x <= q[2], ]
+})
+ggplot(dl, aes(x, colour = scenario)) +
+  geom_density(linewidth = 0.6) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "grey50") +
+  facet_wrap(quant ~ catch, scales = "free", nrow = 2, drop = FALSE,
+             labeller = labeller(catch = function(x) paste(x, "t"), .multi_line = FALSE)) +
+  scale_x_log10() + scale_colour_manual(values = scenCol, name = NULL) +
+  labs(x = NULL, y = "Density") + theme_kobe()
+```
+
+```{r status-msg, cache=FALSE}
+miss=setdiff(scenarios, avail)
+if (length(miss)) message("Not available: ", paste(miss, collapse = ", "))
+```

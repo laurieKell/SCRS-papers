@@ -1,0 +1,16 @@
+\begin{table}[htbp]
+
+\caption{\label{tab:design}Assessment models and uncertainty methods compared. Both surplus-production rows are the JABBA3 bridge (\texttt{ss2jabba3}, \texttt{jb3\_project}). They share the production function and differ only in process error.}
+\centering
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{0.16\textwidth}>{\raggedright\arraybackslash}p{0.18\textwidth}>{\raggedright\arraybackslash}p{0.12\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.18\textwidth}}
+\toprule
+Method & Model & Biomass & Uncertainty & Kobe probabilities\\
+\midrule
+SS3 MVLN & SS3 (age-structured), \texttt{do\_recdev}=1 & SSB / SSBMSY & Hessian, delta method & Bivariate log-normal (analytical)\\
+SS3 MCMC & SS3 (age-structured), \texttt{do\_recdev}=2 & SSB / SSBMSY & Posterior (MCMC) & Counts of draws\\
+SS3 FLasher PE & SS3 via FLR/\texttt{FLasher} & SSB / SSBMSY & MCMC terminal state + block recdev residuals & Counts of paths\\
+JABBA3 & Pella--Tomlinson via \texttt{ss2jabba3} & B / BMSY & Constant process error; MVN draws & \texttt{jb3\_project}\\
+JABBA3 dyn & Same production function & B / BMSY & State-dependent $\sigma_t$, \texttt{jb3\_tier2} & \texttt{jb3\_project}\\
+\bottomrule
+\end{tabular}
+\end{table}

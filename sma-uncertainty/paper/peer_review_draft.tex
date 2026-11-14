@@ -1,0 +1,167 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{setspace}
+\usepackage{authblk}
+\usepackage{amsmath,amssymb}
+\usepackage{enumitem}
+\usepackage{url}
+\usepackage[round]{natbib}
+\usepackage{hyperref}
+
+\setstretch{1.15}
+\parskip=6pt
+\parindent=0pt
+\newcommand{\PG}{P(\mathrm{green})}
+
+\title{\textbf{Rebuilding-time based reference points for non-retained bycatch:\\
+a forward-looking risk-equivalent example for North Atlantic shortfin mako}\\[0.5em]
+\large Journal manuscript, written after SCRS/2026/XXX is withdrawn}
+
+\author[1]{L. T. Kell}
+\affil[1]{Centre for Environmental Policy, Imperial College London, United Kingdom}
+
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent\textit{Draft abstract.}
+Uncertainty methods for stock \emph{status} (delta method, bootstrap, MCMC)
+are well compared \citep{Magnusson2013}, and the broader forecasting agenda
+was set by \citet{Patterson2001}. Modern RFMO advice, however, is often a
+\emph{projection}: Kobe strategy matrices, recovery probabilities and
+rebuilding times under constant catch or harvest control rules. Those
+quantities inherit process error, age-structured lags and structural
+disagreement among models. Using North Atlantic shortfin mako as the primary
+case---with supporting diagnostics and backtests on other stocks---we (i)~show
+that multivariate log-normal (MVLN) Kobe probabilities are closed-form and need
+no Monte Carlo; (ii)~compare MVLN, MCMC and age-structured process-error
+projections under consistent recruitment assumptions; (iii)~contrast
+age-structured SS3 and a JABBA3 surplus-production tier
+(\texttt{ss3diags2::ss2jabba3}) on the risk-equivalent catch of
+\citet{Fischer2023} and the rebuilding year of \citet{KellAcceptedFaF}, in
+light of cryptic spawners and exploitable--SSB lags \citep{Winker2020SMA};
+(iv)~propose diagnostics that
+gate ensemble membership \citep{Kell2026Diags,Carvalho2021}; (v)~outline
+objective selection/exclusion/weighting across frameworks
+\citep{WangEnsembleR5}; and (vi)~argue that rebuilding targets need not be
+MSY-based for sharks \citep{KellAcceptedFaF}. The projection record is
+submitted first as an ICCAT SCRS paper and, after withdrawal, attached as
+the supplementary material of this manuscript. This manuscript is written
+after that withdrawal and does not repeat the grid or the tables.
+\end{abstract}
+
+\textbf{Keywords:} fisheries uncertainty; MVLN; MCMC; process error; Kobe;
+ensemble; rebuilding; shortfin mako; diagnostics; backtesting
+
+\section{Relationship to the SCRS document}
+
+The order of writing is fixed.
+
+\begin{enumerate}[leftmargin=*]
+  \item \texttt{scrs\_2026\_proj\_supplement.tex} is the ICCAT paper. Its
+    introduction and discussion are the top and tail around the projection
+    record: four SMA-N projections, one catch grid, the trajectories, the
+    Kobe matrices, the catches at $\PG = 0.6$ and $0.7$, the rebuilding
+    years, and the closed-form check against the published matrix.
+  \item That paper is submitted to the SCRS, then withdrawn.
+  \item The withdrawn file is attached, unchanged, as the supplementary
+    material of this manuscript. The design, the four specifications, the
+    results and Appendix~A are not rewritten for the journal.
+  \item This manuscript is written after the withdrawal. It keeps the
+    forward-looking risk-equivalent argument, the status-versus-projection
+    framing, diagnostics and ensemble weighting, and the case for rebuilding
+    targets that need not be MSY-based for a non-retained bycatch
+    \citep{SharkWG2026,KellAcceptedFaF}. It does not repeat the projection
+    machinery.
+\end{enumerate}
+
+The earlier prospectus and its three split stubs are in \texttt{archive/}.
+Outlines for papers not yet written are in \texttt{draft\_outlines.tex}.
+
+\section{Introduction (planned)}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Status vs projection.} \citet{Magnusson2013} on delta /
+    bootstrap / MCMC for status; \citet{Patterson2001} on assessment and
+    forecasting; gap for Kobe-style projection advice.
+  \item \textbf{Why sharks expose the gap.} \citet{Winker2020SMA}: cryptic
+    mature biomass, lag exploitable$\leftrightarrow$SSB, SPM misinterpretation;
+    2026 SMA assessment status mix vs SS3-only projections
+    \citep{SharkWG2026}.
+  \item \textbf{Questions.} When is closed-form MVLN enough? When do MCMC and
+    PE change advice? How should ensembles be built? What rebuild metric if
+    not BMSY?
+\end{enumerate}
+
+\section{Materials and methods (planned)}
+
+\subsection{Case studies}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Primary:} North Atlantic shortfin mako 2026 (SS3 MVLN and
+    MCMC via \texttt{ss3diags2}; JABBA3 via \texttt{ss2jabba3}; FLasher PE)
+    --- SCRS numerical core.
+  \item \textbf{Advice-linked:} Scenario~1 / HW2final Kobe path
+    (\texttt{sma-ll-2026}).
+  \item \textbf{Diagnostics:} three-strand examples
+    \citep{Kell2026Diags}; journal strand in \texttt{flrpapers/3strands}
+    (pandalus, herring, sma).
+  \item \textbf{Backtest:} historical peel projections vs later outcomes
+    (\texttt{flrpapers/backtest}) as forecast-skill checks where claimed.
+\end{itemize}
+
+\subsection{Uncertainty treatments}
+MVLN (analytical $\PG$); MCMC; circular-block recruitment PE in age-structured
+forward projection; surplus-production posteriors. Explicit design matrix
+attributing method vs structure vs approximation error (as in SCRS).
+
+\subsection{Ensembles and diagnostics}
+Gate runs by diagnostics before weighting \citep{Kell2026Diags,Carvalho2021};
+weighting recipes from \citet{WangEnsembleR5}. Do not average SS3 and JABBA3
+projections for SMA advice without that gate (WG chose SS3-only projections).
+
+\subsection{Rebuild metrics}
+Time-to-target and risk-equivalent catches \citep{KellAcceptedFaF}; sensitivity
+to target definition (Kobe green vs SPR / depletion).
+
+\section{Results (map from SCRS + extensions)}
+
+\begin{itemize}[leftmargin=*]
+  \item Analytical MVLN vs simulated KSM (SCRS Table~Liniers).
+  \item Status and projection panels: SS3 MVLN, MCMC, FLasher PE, JABBA3.
+  \item Risk-equivalent catch at $\PG = 0.6$ and $0.7$, and rebuilding year,
+    as the open-loop form of \citet{Fischer2023}.
+  \item PE vs deterministic: smooth SSB, fatter risk near KSM cliff.
+  \item Rebuild-year curves; catch at 60/70\% $\PG$ by 2070.
+  \item \textit{Journal adds:} backtest skill tables; SPR-target sensitivity;
+    multi-stock diagnostic appendix; ensemble weight scenarios.
+\end{itemize}
+
+\section{Discussion (planned themes)}
+
+\begin{enumerate}[leftmargin=*]
+  \item Update Patterson/Magnusson for the projection era.
+  \item Process error matters most for prediction, not only reconstruction.
+  \item Age structure as both biology (Winker) and filter of PE.
+  \item Ensembles need procedures, not informal hedging.
+  \item Feedback management vs single open-loop projection to 2070.
+  \item Submit the SCRS paper, withdraw it, and attach that file as the
+    supplement. Write this manuscript afterwards. Do not expand the SCRS
+    paper into the journal article.
+\end{enumerate}
+
+\section{Conclusions (planned)}
+
+Operational checklist for RFMOs: analytical MVLN; consistent-recruitment
+MCMC/PE checks; diagnostic gates; documented ensemble rules; rebuild metrics
+matched to life history (not default BMSY for poorly aged sharks).
+
+\section*{Acknowledgements}
+\textit{To be completed.}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

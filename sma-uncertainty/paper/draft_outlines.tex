@@ -1,0 +1,162 @@
+\documentclass[11pt,a4paper]{article}
+\input{scrs-common.tex}
+
+\title{\textbf{Outlines for papers not yet written}\\[0.5em]
+\large Not an SCRS submission. The projection paper and the journal draft
+already exist.}
+
+\author[1]{L. T. Kell}
+\affil[1]{Centre for Environmental Policy, Imperial College London, London, United Kingdom.\\
+\texttt{laurie@seaplusplus.co.uk}}
+
+\begin{document}
+\maketitle
+
+\begin{center}\textit{WHAT ALREADY EXISTS}\end{center}
+
+Two manuscripts are in progress. Neither is outlined again here.
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Journal draft,} \texttt{peer\_review\_draft.tex}.
+    Rebuilding-time reference points for non-retained bycatch, with North
+    Atlantic shortfin mako as the example. Argument, status-versus-projection
+    framing, and the case that the target need not be $B_{\mathrm{MSY}}$.
+  \item \textbf{SCRS paper,} \texttt{scrs\_2026\_proj\_supplement.tex}.
+    Submitted to ICCAT with its introduction and discussion around the four
+    projections. After withdrawal, that file is the supplementary material
+    of the journal manuscript. It is not rewritten for the journal.
+\end{itemize}
+
+The WGSAM prospectus and the three-way split (papers~i--iii) are in
+\texttt{archive/}. The closed-form check against the published Kobe matrix is
+Appendix~A of the projection paper. Two pieces in the archived drafts are
+not in either current manuscript. The weighting paper is written after the
+submitted ensemble manuscript. The process-error note can be written from
+the cached projection. Neither is ready to number as an SCRS document.
+
+\section{Selecting, excluding and weighting projection runs}
+
+\textbf{Possible form.} A later SCRS paper for WGSAM, written after
+\citet{WangEnsembleR5}. That manuscript is in revision as ICESJMS-2026-566
+(Manuscript-R6, \path{C:/work/papers/02_submitted/ensemble}). It is the
+weighting method: diagnostics first, then predictive weights on an already
+credible set. This paper applies that method to projection runs. The Shark
+Species Group asked for an objective way to select, exclude and weight
+models across frameworks \citep{SharkWG2026}. Do not number this paper until
+that manuscript is the method being cited, and until the SMA-N weights have
+been computed with it.
+
+\textbf{Claim.} A Kobe matrix that averages SS3 and JABBA3 without a gate
+treats a structural disagreement as a weight. The projection paper shows the
+disagreement: at $\PG = 0.6$ in 2070 the SS3-MVLN catch is
+\tacMvlnSeventySixty~t and both JABBA3 catches lie above 2{,}300~t. Weighting
+is the decision about whether that second tier enters the advice table.
+
+\textbf{Audience.} WGSAM. SMA-N is the sketch, not a recommended catch.
+
+\textbf{Sections.}
+\begin{enumerate}[leftmargin=*]
+  \item Why an unweighted mix of frameworks is not an ensemble. The method
+    is the one in \citet{WangEnsembleR5}, not a scheme invented for SMA-N.
+  \item Five steps, in this order.
+    \begin{itemize}[leftmargin=*]
+      \item \textbf{Select.} Keep runs that pass agreed diagnostics: fits,
+        retrospectives or hindcasts, residual structure
+        \citep{Kell2026Diags,Carvalho2021}.
+      \item \textbf{Exclude.} Drop runs that fail those diagnostics, and drop
+        a projection whose biology cannot answer the question. For SMA-N that
+        is a surplus-production projection when recovery depends on the lag
+        between exploitable biomass and spawners \citep{Winker2020SMA}.
+      \item \textbf{Propagate.} Closed-form MVLN when the delta-method model
+        is log-normal. MCMC when the posterior is not, or when parameters are
+        bounded. Recruitment process error when the advice is a multi-year
+        recovery and year-by-year MVLN would understate risk near the cliff.
+      \item \textbf{Weight.} Only among runs that remain, using the predictive
+        weights of \citet{WangEnsembleR5}. That paper weights an already
+        credible set. It does not decide whether a surplus-production
+        projection is eligible for an SMA-N rebuilding matrix. Excluded runs
+        stay out of the average.
+      \item \textbf{Report.} Show MVLN, MCMC and any process-error sensitivity
+        as their own columns, even if a weighted mean is also shown. Keep that
+        table separate from Species Group catch advice.
+    \end{itemize}
+  \item Candidate runs for the sketch: SS3-MVLN, SS3-MCMC (only after the
+    same \texttt{do\_recdev} as MVLN), FLasher process error as a sensitivity,
+    the JABBA3 bridge, and the WG JAGS runs if they are ported. The JAGS 1-B
+    and 1-S results from an older knit are not relabelled as JABBA3.
+  \item Worked weights: diagnostic outcome for each run, who is excluded, the
+    weight scheme, and $\PG$ and the catch-at-target with and without the
+    weights. Reuse the projection paper's catch table as the unweighted
+    baseline.
+  \item Decision the paper has to make: does the JABBA3 tier enter the SMA-N
+    advice table, and if so with what weight? The projection paper shows that
+    the tier changes the catch. It does not make that decision.
+\end{enumerate}
+
+\textbf{Already written.} The weighting method, in the submitted ensemble
+manuscript. The five-step box for this application is in
+\texttt{archive/scrs\_2026\_ensemble\_weights.tex}. The candidate list is a
+sketch. The gate column is empty.
+
+\textbf{Missing before it is a paper.} Cite \citet{WangEnsembleR5} in the
+form that will be the method, then a diagnostic pass or fail for each SMA-N
+run, a weight from that scheme for each retained run, and one table of
+weighted against unweighted $\PG$ and catch-at-target.
+
+\section{Recruitment process error at the Kobe cliff}
+
+\textbf{Possible form.} Short SCRS sensitivity note. It is not one of the
+four projections in the supplement. SS3-MVLN has no recruitment path: each
+year's $(\log B, \log F)$ is independent. For a late-maturing shark the
+advice is a multi-year recovery, so that omission is a methods question of
+its own.
+
+\textbf{Claim.} Given the same MCMC terminal state, carrying historical
+recruitment residuals forward changes the catch that meets $\PG = 0.6$ near
+the steep part of the risk curve. Spawning biomass stays smooth, because many
+year classes filter a single residual. The risk does not.
+
+\textbf{Audience.} WGSAM. The numerical example is SMA-N, conditioned on the
+recDev2 MCMC end state, projected with \texttt{FLRebuild::ssProject} and
+\texttt{FLasher::fwd}. Residuals are circular-block resamples of the
+historical series, not independent draws by year
+(\texttt{scripts/run-ss-project.R}, \texttt{data/runs/ss-project.rds}).
+
+\textbf{Sections.}
+\begin{enumerate}[leftmargin=*]
+  \item What MVLN leaves out: no recruitment trajectory, so a late-maturing
+    stock's recovery is a sequence of independent margins.
+  \item The contrast that isolates process error. Both paths start from the
+    MCMC terminal state. One uses residual $= 1$. The other resamples the
+    historical residual series in blocks. This is not the MVLN-versus-MCMC
+    comparison, which is still confounded by \texttt{do\_recdev}.
+  \item Trajectories: median and 90\% interval of $\BB$ and $\FF$ at a few
+    catches (0, 1{,}200, 1{,}883, 2{,}300~t). Figure
+    \texttt{figs/ss-project-pe.png}.
+  \item $\PG$ by catch and year for the deterministic path and the resampled
+    path (\texttt{tabs/ss-project.tex}). The catch at 60\% and 70\% in 2045
+    and 2070: \tacPeFortyFiveSixty~t and \tacPeSeventySixty~t at 60\%, and
+    \tacPeFortyFiveSeventy~t and \tacPeSeventySeventy~t at 70\%.
+  \item Where it matters. Away from the cliff the two paths agree. On the
+    steep part of the curve, process error turns a step in $\PG$ into a
+    slope and fattens the upper tail of $\FF$. Age structure filters the
+    biomass path and does not filter that risk
+    \citep{Winker2020SMA}.
+  \item What the note will not claim. Absolute $\PG$ is an FLR projection of
+    the SS3 end state. The result is the difference between residual $= 1$
+    and the block resample, not a replacement for the endorsed SS3 matrix
+    \citep{Liniers2026}.
+\end{enumerate}
+
+\textbf{Already computed.} The cached \texttt{ssProject} run, the figure, and
+the catch numbers above.
+
+\textbf{Missing before it is a paper.} A same-\texttt{do\_recdev} MVLN next
+to this sensitivity, so the process-error effect is not only shown against
+the deterministic FLasher path. A sentence on how large a change in catch
+would alter Rec.~21-09 advice.
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}
